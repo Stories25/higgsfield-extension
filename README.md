@@ -1,8 +1,11 @@
 # Higgsfield Prompt Extender Chrome Extension
 
-A sleek Chrome extension that optimizes the video prompt box on **Higgsfield AI** (`https://higgsfield.ai/ai/video`). It introduces two major upgrades:
-1. **Vertical Resizing**: Drag the bottom corner of the prompt box to extend its height in the sidebar layout.
-2. **In-place Height Toggle**: Click the "Double Chevron" toggle button at the top right of the prompt box to expand/collapse the box height in-place between `160px` and `450px` fluidly.
+A sleek Chrome extension that optimizes the video prompt box and settings sidebar on **Higgsfield AI** (`https://higgsfield.ai/ai/video`). It introduces key layout upgrades:
+1. **Vertical Resizing**: Drag the bottom edge of the prompt box to extend its height in the sidebar layout.
+2. **In-place Height Toggle**: Click the vertical double chevron toggle button (`︾` / `︽`) in the top-right of the prompt box to toggle height between `160px` and `450px` fluidly.
+3. **Horizontal Sidebar Resizing**: Drag the right edge of the settings sidebar horizontally to size it anywhere from `320px` to `800px` dynamically with absolute smoothness.
+4. **Width Preference Persistence**: Remembers your preferred sidebar width dynamically in `localStorage` across page reloads.
+5. **Horizontal Sidebar Width Toggle**: Click the horizontal double chevron toggle button (`>>` / `<<`) next to the height toggle to expand the sidebar to `600px` instantly, or collapse it back to default.
 
 ---
 
@@ -28,7 +31,9 @@ A sleek Chrome extension that optimizes the video prompt box on **Higgsfield AI*
 
 ## 💡 How to Use
 
-* **Resize in Sidebar**: Hover over the bottom edge of the prompt box in the left sidebar and drag down to resize.
-* **In-place Expand**: Hover over the prompt input and click the double chevron down (`︾`) icon in the top-right corner. It will expand fluidly to `450px` in-place, pushing elements down and giving you ample space.
-* **In-place Collapse**: Click the double chevron up (`︽`) icon to return to the standard sidebar view.
+* **Vertical Height Toggle**: Click the double chevron down (`︾`) icon in the top-right corner of the prompt box to expand it to `450px` in-place. Click the double chevron up (`︽`) icon to collapse it.
+* **Vertical Manual Drag**: Hover over the bottom edge of the prompt box and drag vertically to adjust height manually.
+* **Horizontal Width Toggle**: Click the double chevron right (`>>`) icon next to the height toggle in the prompt box to expand the sidebar to `600px`. Click it again (`<<`) to restore it.
+* **Horizontal Manual Drag**: Hover over the right edge of the settings sidebar (a green highlight bar will appear on hover) and drag horizontally to resize from `320px` to `800px` freely.
+
 

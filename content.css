@@ -74,3 +74,75 @@
   height: 14px;
 }
 
+/* 3. Horizontal Resizer Handle on Right Border of Sidebar */
+.higgsfield-sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 9999;
+  background: transparent;
+  transition: background-color 0.2s ease;
+}
+
+.higgsfield-sidebar-resizer:hover,
+body.higgsfield-resizing .higgsfield-sidebar-resizer {
+  background-color: rgba(209, 254, 23, 0.45) !important; /* Accented brand green/yellow */
+  box-shadow: 0 0 4px rgba(209, 254, 23, 0.6);
+}
+
+/* 4. Horizontal Expand Button Styling (Sits next to the height expand button) */
+.higgsfield-sidebar-expand-btn {
+  position: absolute;
+  top: 10px;
+  right: 44px; /* Placed left of the height expand button (right: 10px) with gap */
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #a3a3a3;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  z-index: 100;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.higgsfield-sidebar-expand-btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.higgsfield-sidebar-expand-btn:active {
+  transform: scale(0.95);
+}
+
+.higgsfield-sidebar-expand-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Force layout cursors and disable text selection globally during active drag-resizing */
+body.higgsfield-resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Smooth horizontal transition for width toggling */
+div.w-\\[380px\\], div[class*="w-[380px]"] {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), flex-basis 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Disable width transition during active mouse drag for immediate, smooth feedback */
+body.higgsfield-resizing div.w-\\[380px\\],
+body.higgsfield-resizing div[class*="w-[380px]"] {
+  transition: none !important;
+}
+
+
