@@ -1,0 +1,76 @@
+/* Higgsfield Prompt Extender Stylesheet */
+
+/* 1. Base Styles & Resizability for the Prompt Box in Sidebar */
+.higgsfield-prompt-wrapper {
+  max-height: none !important;
+  min-height: 160px !important;
+  height: 160px; /* Default starting height */
+  resize: vertical !important;
+  overflow: auto !important;
+  position: relative !important;
+  transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+}
+
+/* Expanded state - sizes the prompt container in-place */
+.higgsfield-prompt-wrapper.expanded {
+  height: 450px !important;
+}
+
+/* Custom scrollbar styling for the resizable container */
+.higgsfield-prompt-wrapper::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.higgsfield-prompt-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.higgsfield-prompt-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+.higgsfield-prompt-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Ensure the Lexical textbox uses the full height of the resized wrapper */
+.higgsfield-prompt-wrapper > div:first-of-type {
+  height: 100% !important;
+}
+
+/* 2. Premium Expand/Collapse Button Styling */
+.higgsfield-prompt-expand-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #a3a3a3; /* Neutral secondary text color */
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  z-index: 100;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.higgsfield-prompt-expand-btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.higgsfield-prompt-expand-btn:active {
+  transform: scale(0.95);
+}
+
+.higgsfield-prompt-expand-btn svg {
+  width: 14px;
+  height: 14px;
+}
+

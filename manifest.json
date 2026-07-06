@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Higgsfield Prompt Extender",
+  "version": "1.0.0",
+  "description": "Enlarge and maximize the prompt edit box on Higgsfield AI for a premium editing experience.",
+  "permissions": [],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://higgsfield.ai/*"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
