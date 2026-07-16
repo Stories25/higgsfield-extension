@@ -140,23 +140,15 @@ async function processNextPrompt() {
       addLog('Navigated to Video Page. Waiting for load...');
       await new Promise(r => setTimeout(r, 3000));
     }
-    // 2. If safe-check is enabled, poll until no active generations exist
+    // 2. If safe-check is enabled, abort immediately if any active generations are processing
     if (batchState.useCheck) {
-      addLog('Checking if page has active generations processing...');
-      let isProcessing = true;
-      while (isProcessing) {
-        if (batchState.status !== 'running') {
-          addLog('Generation process interrupted.');
-          return;
-        }
-        
-        const count = await chrome.tabs.sendMessage(tab.id, { action: 'getActiveGenerationCount' });
-        if (count === 0) {
-          isProcessing = false;
-        } else {
-          addLog(`Active generation still in progress (Count: ${count}). Waiting 5 seconds...`);
-          await new Promise(r => setTimeout(r, 5000));
-        }
+      addLog('Checking for active generations...');
+      const count = await chrome.tabs.sendMessage(tab.id, { action: 'getActiveGenerationCount' });
+      if (count > 0) {
+        addLog(`ERROR: Active generation already in progress (Count: ${count}). Aborting.`);
+        batchState.status = 'stopped';
+        saveState();
+        return;
       }
       addLog('Page clear. Proceeding to generate...');
     }

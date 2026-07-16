@@ -21,7 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const logsConsole = document.getElementById('logs-console');
   const clearLogsBtn = document.getElementById('clear-logs');
   
-  const btnStart = document.getElementById('btn-start');
   const btnCheckStart = document.getElementById('btn-check-start');
   const btnFillOnly = document.getElementById('btn-fill-only');
   const btnClearForm = document.getElementById('btn-clear-form');
@@ -79,28 +78,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   // Control Buttons Event Listeners
-  btnStart.addEventListener('click', () => {
-    const promptText = promptInput.value.trim();
-    const prompts = promptText.length > 0 ? [promptText] : [''];
-    const settings = readSettingsFromForm();
-    chrome.storage.local.set({ savedSettings: settings });
-
+  btnCheckStart.addEventListener('click', () => {
     if (currentStatus === 'paused') {
       chrome.runtime.sendMessage({ action: 'resume' }, (response) => {
         if (response && response.success) {
           updateUI(response.state);
         }
       });
-    } else {
-      chrome.runtime.sendMessage({ action: 'start', prompts, settings, useCheck: false }, (response) => {
-        if (response && response.success) {
-          updateUI(response.state);
-        }
-      });
+      return;
     }
-  });
 
-  btnCheckStart.addEventListener('click', () => {
     const promptText = promptInput.value.trim();
     const prompts = promptText.length > 0 ? [promptText] : [''];
     const settings = readSettingsFromForm();
@@ -253,7 +240,6 @@ document.addEventListener('DOMContentLoaded', () => {
       progressBarFill.style.width = `${pct}%`;
       
       // Control buttons toggle
-      btnStart.classList.add('hidden');
       btnCheckStart.classList.add('hidden');
       btnFillOnly.classList.add('hidden');
       btnClearForm.classList.add('hidden');
@@ -271,12 +257,11 @@ document.addEventListener('DOMContentLoaded', () => {
       setBitrate.disabled = true;
       progressCard.classList.remove('hidden');
       
-      btnStart.classList.remove('hidden');
-      btnStart.innerHTML = `
+      btnCheckStart.classList.remove('hidden');
+      btnCheckStart.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
         Resume
       `;
-      btnCheckStart.classList.add('hidden');
       btnFillOnly.classList.add('hidden');
       btnClearForm.classList.add('hidden');
       btnPromptOnly.classList.add('hidden');
@@ -294,12 +279,11 @@ document.addEventListener('DOMContentLoaded', () => {
       setBitrate.disabled = false;
       progressCard.classList.add('hidden');
       
-      btnStart.classList.remove('hidden');
-      btnStart.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-        Generate
-      `;
       btnCheckStart.classList.remove('hidden');
+      btnCheckStart.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+        Check & Generate
+      `;
       btnFillOnly.classList.remove('hidden');
       btnClearForm.classList.remove('hidden');
       btnPromptOnly.classList.remove('hidden');

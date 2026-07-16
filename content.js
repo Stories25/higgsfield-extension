@@ -832,7 +832,6 @@
     },
 
     getActiveGenerationCount: async function () {
-      let count = 0;
       const textNodes = [];
       const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
       let node;
@@ -845,6 +844,32 @@
           }
         }
       }
+
+      // Scan for visual spinner/loader elements (catches blank spinner cards)
+      const spinnerSelectors = [
+        '.animate-spin',
+        '[class*="spinner"]',
+        '[class*="loader"]',
+        '[class*="loading"]',
+        '[class*="processing"]',
+        'svg animateTransform',
+        '[role="progressbar"]',
+        '[aria-busy="true"]'
+      ];
+
+      const spinners = Array.from(document.querySelectorAll(spinnerSelectors.join(', ')));
+      for (const spinner of spinners) {
+        // Skip elements inside the extension popup/sidebar itself
+        if (spinner.closest('#higgsfield-batch-sidebar') || spinner.closest('.app-container')) continue;
+
+        // Check if the spinner is visible
+        const rect = spinner.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          const card = spinner.closest('li, [class*="item"], [class*="card"], [class*="history"]') || spinner;
+          textNodes.push(card);
+        }
+      }
+
       const uniqueParents = new Set(textNodes);
       return uniqueParents.size;
     },
