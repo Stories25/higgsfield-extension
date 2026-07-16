@@ -193,11 +193,55 @@
     return null;
   }
 
+  // Helper: Find dropdown/settings control button relative to its text label
+  function findButtonNearLabel(labelText) {
+    const sidebar = getSidebar();
+    const elements = Array.from(document.querySelectorAll('div, span, label, p, h1, h2, h3, h4, h5, h6'));
+    
+    // Filter to elements inside the creation panel
+    const candidates = elements.filter(el => {
+      if (sidebar && sidebar.contains(el)) return true;
+      const rect = el.getBoundingClientRect();
+      return rect.left < 850 && rect.top > 90;
+    });
+
+    const matchingLabels = candidates.filter(el => {
+      const text = el.textContent?.trim().toLowerCase() || '';
+      return text === labelText.toLowerCase() || text.includes(labelText.toLowerCase());
+    });
+
+    for (const label of matchingLabels) {
+      let current = label;
+      // Search up to 3 parent levels for a button or sibling button
+      for (let i = 0; i < 3; i++) {
+        if (!current) break;
+        const btn = current.querySelector('button, [role="button"]');
+        if (btn) return btn;
+        
+        let sibling = current.nextElementSibling;
+        while (sibling) {
+          if (sibling.tagName === 'BUTTON' || sibling.getAttribute('role') === 'button') {
+            return sibling;
+          }
+          const subBtn = sibling.querySelector('button, [role="button"]');
+          if (subBtn) return subBtn;
+          sibling = sibling.nextElementSibling;
+        }
+        current = current.parentElement;
+      }
+    }
+    return null;
+  }
+
   // Helper: Find and click dropdown list/menu option
   async function selectDropdownOption(buttonText, optionText) {
-    const btn = findButtonByText(buttonText);
+    let btn = findButtonByText(buttonText);
     if (!btn) {
-      // Fallback: search for buttons carrying current option states (like "720p" or "Enhanced")
+      btn = findButtonNearLabel(buttonText);
+    }
+
+    if (!btn) {
+      // Fallback: search for buttons carrying current option states (like "720p", "High", or "Enhanced")
       // Scoped only to the left creation panel to avoid clicking history cards
       const sidebar = getSidebar();
       const allButtons = Array.from(document.querySelectorAll('button')).filter(b => {
@@ -208,18 +252,26 @@
       let foundBtn = null;
       for (const b of allButtons) {
         const text = b.textContent || '';
-        if (text.includes('p') || text.includes(':') || text.includes('Fast') || text.includes('Enhanced')) {
+        if (buttonText.toLowerCase() === 'resolution' && text.includes('p')) {
+          foundBtn = b;
+        } else if (buttonText.toLowerCase() === 'ratio' && text.includes(':')) {
+          foundBtn = b;
+        } else if (buttonText.toLowerCase() === 'model' && (text.includes('Fast') || text.includes('Enhanced'))) {
+          foundBtn = b;
+        } else if (buttonText.toLowerCase() === 'bitrate' && (text.includes('High') || text.includes('Standard') || text.includes('Low') || text.includes('Auto'))) {
           foundBtn = b;
         }
       }
       if (foundBtn) {
-        foundBtn.click();
-      } else {
-        throw new Error(`Control button for "${buttonText}" not found`);
+        btn = foundBtn;
       }
-    } else {
-      btn.click();
     }
+
+    if (!btn) {
+      throw new Error(`Control button for "${buttonText}" not found`);
+    }
+
+    btn.click();
 
     await new Promise(r => setTimeout(r, 600));
 
@@ -228,17 +280,41 @@
       '[role="listbox"], [role="menu"], [role="presentation"], .dropdown-menu, .popover, .portal, [class*="menu"], [class*="select"]'
     ));
 
+    function isMatchingOption(el, text) {
+      const elText = el.textContent?.trim().toLowerCase() || '';
+      const targetText = text.toLowerCase();
+      return elText === targetText || elText.includes(targetText);
+    }
+
     let optionEl = null;
     for (const container of dropdowns) {
-      const options = Array.from(container.querySelectorAll('[role="option"], [role="menuitem"], button, div, span'));
-      optionEl = options.find(el => el.textContent?.trim().toLowerCase() === optionText.toLowerCase() || 
-                                   el.textContent?.trim().toLowerCase().includes(optionText.toLowerCase()));
+      const options = Array.from(container.querySelectorAll('[role="option"], [role="menuitem"], button, div, span, a, li, p'));
+      optionEl = options.find(el => isMatchingOption(el, optionText));
       if (optionEl) break;
     }
 
     if (!optionEl) {
-      const globalOptions = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], button, div'));
-      optionEl = globalOptions.find(el => el.textContent?.trim().toLowerCase() === optionText.toLowerCase());
+      // Look globally for visible options/menuitems or buttons/spans that match the text,
+      // excluding the trigger button itself and its ancestors/descendants to prevent closing the dropdown.
+      const globalCandidates = Array.from(document.querySelectorAll(
+        '[role="option"], [role="menuitem"], button, div, span, a, li, p'
+      )).filter(el => {
+        if (el === btn || el.contains(btn) || btn.contains(el)) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
+      
+      const matches = globalCandidates.filter(el => isMatchingOption(el, optionText));
+      
+      // Sort matches to find the one closest in length to the target text to avoid matching larger container elements
+      if (matches.length > 0) {
+        matches.sort((a, b) => {
+          const aLen = (a.textContent || '').trim().length;
+          const bLen = (b.textContent || '').trim().length;
+          return aLen - bLen;
+        });
+        optionEl = matches[0];
+      }
     }
 
     if (!optionEl) {
