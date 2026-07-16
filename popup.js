@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   const btnStart = document.getElementById('btn-start');
   const btnFillOnly = document.getElementById('btn-fill-only');
+  const btnClearForm = document.getElementById('btn-clear-form');
   const btnPromptOnly = document.getElementById('btn-prompt-only');
   const btnPause = document.getElementById('btn-pause');
   const btnStop = document.getElementById('btn-stop');
@@ -141,6 +142,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  btnClearForm.addEventListener('click', () => {
+    btnClearForm.disabled = true;
+    const oldText = btnClearForm.innerHTML;
+    btnClearForm.textContent = 'Clearing...';
+
+    chrome.runtime.sendMessage({ action: 'clearForm' }, (response) => {
+      btnClearForm.disabled = false;
+      btnClearForm.innerHTML = oldText;
+      if (chrome.runtime.lastError) {
+        alert('Failed to connect to page context. Please make sure the active tab is on Higgsfield and refresh.');
+      }
+    });
+  });
+
   btnPause.addEventListener('click', () => {
     chrome.runtime.sendMessage({ action: 'pause' }, (response) => {
       if (response && response.success) {
@@ -232,6 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Control buttons toggle
       btnStart.classList.add('hidden');
       btnFillOnly.classList.add('hidden');
+      btnClearForm.classList.add('hidden');
       btnPromptOnly.classList.add('hidden');
       btnPause.classList.remove('hidden');
       btnStop.classList.remove('hidden');
@@ -252,6 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Resume Batch
       `;
       btnFillOnly.classList.add('hidden');
+      btnClearForm.classList.add('hidden');
       btnPromptOnly.classList.add('hidden');
       btnPause.classList.add('hidden');
       btnStop.classList.remove('hidden');
@@ -273,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Start Batch
       `;
       btnFillOnly.classList.remove('hidden');
+      btnClearForm.classList.remove('hidden');
       btnPromptOnly.classList.remove('hidden');
       btnPause.classList.add('hidden');
       btnStop.classList.add('hidden');

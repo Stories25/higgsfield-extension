@@ -367,6 +367,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     })();
     return true;
   }
+  else if (request.action === 'clearForm') {
+    addLog('Executing "Clear Form" task...');
+    saveState();
+
+    (async () => {
+      try {
+        const tab = await getHiggsfieldTab();
+        await ensureContentScriptInjected(tab.id);
+
+        addLog('Checking if tab is on video page...');
+        const onPage = await chrome.tabs.sendMessage(tab.id, { action: 'ensureOnVideoPage' });
+        if (!onPage) {
+          addLog('Navigated to Video Page. Waiting for load...');
+          await new Promise(r => setTimeout(r, 3000));
+          await ensureContentScriptInjected(tab.id);
+        }
+
+        // Call resetForm with an empty string prompt to wipe out prompt box and images completely
+        addLog('Clearing prompt textbox and reference images...');
+        await chrome.tabs.sendMessage(tab.id, { action: 'resetForm', prompt: '' });
+
+        addLog('Form cleared successfully!');
+        sendResponse({ success: true });
+      } catch (err) {
+        addLog(`ERROR: Failed to clear form: ${err.message || err}`);
+        sendResponse({ success: false, error: err.message || err });
+      }
+    })();
+    return true;
+  }
   
   return true; // Keep message channel open for async response
 });

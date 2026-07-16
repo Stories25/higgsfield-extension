@@ -174,9 +174,11 @@
 
   // Helper: Find element by text content or ARIA attributes
   function findButtonByText(text) {
+    const sidebar = getSidebar();
     const buttons = Array.from(document.querySelectorAll('button, div[role="button"], span[role="button"]')).filter(btn => {
+      if (sidebar && sidebar.contains(btn)) return true;
       const rect = btn.getBoundingClientRect();
-      return rect.left < 400 && rect.top > 90;
+      return rect.left < 850 && rect.top > 90;
     });
     for (const btn of buttons) {
       const btnText = btn.textContent?.trim().toLowerCase() || '';
@@ -197,9 +199,11 @@
     if (!btn) {
       // Fallback: search for buttons carrying current option states (like "720p" or "Enhanced")
       // Scoped only to the left creation panel to avoid clicking history cards
+      const sidebar = getSidebar();
       const allButtons = Array.from(document.querySelectorAll('button')).filter(b => {
+        if (sidebar && sidebar.contains(b)) return true;
         const rect = b.getBoundingClientRect();
-        return rect.left < 400 && rect.top > 90;
+        return rect.left < 850 && rect.top > 90;
       });
       let foundBtn = null;
       for (const b of allButtons) {
@@ -247,10 +251,7 @@
     await new Promise(r => setTimeout(r, 500));
   }
 
-  // Helper: Clear the Lexical editor using simulated keyboard shortcuts
-  // Lexical ignores document.execCommand and direct DOM manipulation.
-  // The ONLY way to clear it is to simulate what a real user would do:
-  // Cmd/Ctrl+A (select all) → Backspace (delete selection)
+  // Helper: Clear the Lexical editor using Selection API, delete commands, and fallback key events
   async function clearLexicalEditor() {
     const editor = document.querySelector('div[data-lexical-editor="true"][role="textbox"]');
     if (!editor) return;
@@ -258,57 +259,34 @@
     editor.focus();
     await new Promise(r => setTimeout(r, 100));
 
-    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-    const modKey = isMac ? 'metaKey' : 'ctrlKey';
+    // Method 1: Using Selection API and native delete command
+    try {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      
+      document.execCommand('delete', false, null);
+      await new Promise(r => setTimeout(r, 100));
+    } catch (e) {
+      console.warn('Selection API clear failed:', e);
+    }
 
-    // Simulate Cmd/Ctrl+A to select all text
-    editor.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'a',
-      code: 'KeyA',
-      keyCode: 65,
-      which: 65,
-      [modKey]: true,
-      bubbles: true,
-      cancelable: true
-    }));
-    editor.dispatchEvent(new KeyboardEvent('keyup', {
-      key: 'a',
-      code: 'KeyA',
-      keyCode: 65,
-      which: 65,
-      [modKey]: true,
-      bubbles: true
-    }));
-    await new Promise(r => setTimeout(r, 100));
+    // Method 2: selectAll + delete fallback
+    try {
+      document.execCommand('selectAll', false, null);
+      document.execCommand('delete', false, null);
+      await new Promise(r => setTimeout(r, 100));
+    } catch (e) {
+      console.warn('execCommand selectAll clear failed:', e);
+    }
 
-    // Simulate Backspace to delete selected text
-    editor.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'Backspace',
-      code: 'Backspace',
-      keyCode: 8,
-      which: 8,
-      bubbles: true,
-      cancelable: true
-    }));
-    // Lexical also listens to beforeinput for deletions
-    editor.dispatchEvent(new InputEvent('beforeinput', {
-      inputType: 'deleteContentBackward',
-      bubbles: true,
-      cancelable: true,
-      composed: true
-    }));
-    editor.dispatchEvent(new KeyboardEvent('keyup', {
-      key: 'Backspace',
-      code: 'Backspace',
-      keyCode: 8,
-      which: 8,
-      bubbles: true
-    }));
-    await new Promise(r => setTimeout(r, 200));
+    // Method 3: If text persists, fall back to keyboard event simulation
+    if ((editor.textContent || '').trim().length > 0) {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const modKey = isMac ? 'metaKey' : 'ctrlKey';
 
-    // Verify content is cleared, if not try multiple Backspace presses
-    let attempts = 0;
-    while ((editor.textContent || '').trim().length > 0 && attempts < 10) {
       editor.dispatchEvent(new KeyboardEvent('keydown', {
         key: 'a', code: 'KeyA', keyCode: 65, which: 65,
         [modKey]: true, bubbles: true, cancelable: true
@@ -322,8 +300,11 @@
         inputType: 'deleteContentBackward',
         bubbles: true, cancelable: true, composed: true
       }));
+      editor.dispatchEvent(new KeyboardEvent('keyup', {
+        key: 'Backspace', code: 'Backspace', keyCode: 8, which: 8,
+        bubbles: true
+      }));
       await new Promise(r => setTimeout(r, 100));
-      attempts++;
     }
   }
 
@@ -378,6 +359,17 @@
   // Automation bridge functions
   const automationBridge = {
     ensureOnVideoPage: async function () {
+      // Strip recreateJobSetId from URL if present to prevent auto-restoration on re-render
+      if (window.location.search.includes('recreateJobSetId')) {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('recreateJobSetId');
+          window.history.replaceState({}, '', url.pathname + url.search);
+        } catch (e) {
+          console.warn('Failed to strip recreateJobSetId from URL:', e);
+        }
+      }
+
       const targetUrl = 'https://higgsfield.ai/ai/video';
       if (window.location.href.startsWith(targetUrl)) {
         return true;
@@ -387,14 +379,27 @@
     },
 
     resetForm: async function (newPrompt) {
+      // Strip recreateJobSetId from URL if present to prevent auto-restoration
+      if (window.location.search.includes('recreateJobSetId')) {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('recreateJobSetId');
+          window.history.replaceState({}, '', url.pathname + url.search);
+        } catch (e) {
+          console.warn('Failed to strip recreateJobSetId from URL:', e);
+        }
+      }
+
       // Step 1: Clear the prompt text box using keyboard event simulation
       await clearLexicalEditor();
       await new Promise(r => setTimeout(r, 200));
 
       // Step 2: Remove all uploaded reference images (except those used in the prompt)
+      const sidebar = getSidebar();
       const thumbnails = Array.from(document.querySelectorAll('img')).filter(img => {
+        if (sidebar && sidebar.contains(img)) return true;
         const rect = img.getBoundingClientRect();
-        return rect.left < 400 && rect.top > 90;
+        return rect.left < 850 && rect.top > 90;
       });
       let removedCount = 0;
 
@@ -405,10 +410,14 @@
           continue;
         }
 
-        // Hover the thumbnail card to activate CSS/React hover class handlers
-        img.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-        img.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-        await new Promise(r => setTimeout(r, 100));
+        // Hover the thumbnail card and its ancestors to activate CSS/React hover class handlers
+        let hoverTarget = img;
+        for (let k = 0; k < 3 && hoverTarget; k++) {
+          hoverTarget.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+          hoverTarget.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+          hoverTarget = hoverTarget.parentElement;
+        }
+        await new Promise(r => setTimeout(r, 150));
 
         let parent = img.parentElement;
         let count = 0;
@@ -485,61 +494,165 @@
     },
 
     setDuration: async function (seconds) {
-      let durationBtn = findButtonByText('Duration') || findButtonByText(' s');
+      // Find duration button inside the settings sidebar
+      const sidebar = getSidebar() || document.body;
+      const buttons = Array.from(sidebar.querySelectorAll('button, div[role="button"], span[role="button"]'));
+      let durationBtn = null;
+
+      // 1. Find by exact/partial "duration" label
+      for (const btn of buttons) {
+        const text = (btn.textContent || '').trim().toLowerCase();
+        const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+        if (text === 'duration' || label === 'duration' || text.includes('duration') || label.includes('duration')) {
+          durationBtn = btn;
+          break;
+        }
+      }
+
+      // 2. Find by pattern (e.g. "5s", "5 s", "10s", etc.)
       if (!durationBtn) {
-        const buttons = Array.from(document.querySelectorAll('button'));
         for (const btn of buttons) {
-          if (/\b\d+\s*s\b/i.test(btn.textContent || '')) {
+          const text = (btn.textContent || '').trim();
+          if (/\b\d+\s*s\b/i.test(text)) {
             durationBtn = btn;
             break;
           }
         }
       }
 
+      // 3. Fallback to global query if not found inside sidebar
       if (!durationBtn) {
-        throw new Error('Duration button not found');
+        durationBtn = findButtonByText('Duration') || findButtonByText(' s');
       }
 
-      durationBtn.click();
-      await new Promise(r => setTimeout(r, 600));
-
-      let dialog = document.querySelector('[role="dialog"], .dialog, .popover, .portal');
-      if (!dialog) {
-        durationBtn.click();
-        await new Promise(r => setTimeout(r, 800));
+      if (!durationBtn) {
+        throw new Error('Duration button not found on page');
       }
 
-      const activeDialog = document.querySelector('[role="dialog"], .dialog, .popover, .portal') || document.body;
-      const slider = activeDialog.querySelector('[role="slider"]') || activeDialog.querySelector('input[type="range"]');
+      // Open the slider popover dialog (if not already open)
+      let slider = document.querySelector('[role="slider"]') || 
+                   document.querySelector('input[type="range"]') ||
+                   document.querySelector('.radix-slider-thumb') ||
+                   document.querySelector('[data-radix-slider-thumb]');
+      
       if (!slider) {
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-        throw new Error('Duration slider control not found inside popup dialog');
+        durationBtn.click();
+        // Poll for the slider to appear in the DOM (up to 1.5 seconds)
+        for (let i = 0; i < 15; i++) {
+          await new Promise(r => setTimeout(r, 100));
+          slider = document.querySelector('[role="slider"]') || 
+                   document.querySelector('input[type="range"]') ||
+                   document.querySelector('.radix-slider-thumb') ||
+                   document.querySelector('[data-radix-slider-thumb]');
+          if (slider) break;
+        }
       }
 
+      if (!slider) {
+        throw new Error('Duration slider control not found after clicking duration button');
+      }
+
+      // Helper function to extract current slider value
+      function getSliderValue(el) {
+        let valAttr = el.getAttribute('aria-valuenow') || el.getAttribute('value');
+        if (valAttr) {
+          const parsed = parseInt(valAttr, 10);
+          if (!isNaN(parsed)) return parsed;
+        }
+        const container = el.closest('[class*="slider"], [data-radix-slider-root]') || el.parentElement;
+        if (container) {
+          const input = container.querySelector('input');
+          if (input && input.value) {
+            const parsed = parseInt(input.value, 10);
+            if (!isNaN(parsed)) return parsed;
+          }
+        }
+        return 4; // Default fallback
+      }
+
+      // Change the value
       if (slider.tagName.toLowerCase() === 'input') {
         slider.value = seconds;
         slider.dispatchEvent(new Event('input', { bubbles: true }));
         slider.dispatchEvent(new Event('change', { bubbles: true }));
       } else {
         slider.focus();
-        let currentVal = parseInt(slider.getAttribute('aria-valuenow') || slider.getAttribute('value') || '4', 10);
-        const diff = seconds - currentVal;
-        const key = diff > 0 ? 'ArrowRight' : 'ArrowLeft';
-        const presses = Math.abs(diff);
+        await new Promise(r => setTimeout(r, 100));
 
-        for (let i = 0; i < presses; i++) {
-          const keydown = new KeyboardEvent('keydown', { key, code: key, bubbles: true, cancelable: true });
-          const keyup = new KeyboardEvent('keyup', { key, code: key, bubbles: true, cancelable: true });
-          slider.dispatchEvent(keydown);
-          slider.dispatchEvent(keyup);
-          await new Promise(r => setTimeout(r, 150));
+        const currentVal = getSliderValue(slider);
+        const diff = seconds - currentVal;
+        if (diff !== 0) {
+          const key = diff > 0 ? 'ArrowRight' : 'ArrowLeft';
+          const keyCode = key === 'ArrowRight' ? 39 : 37;
+          const presses = Math.abs(diff);
+
+          for (let i = 0; i < presses; i++) {
+            const keydown = new KeyboardEvent('keydown', { 
+              key, 
+              code: key, 
+              keyCode: keyCode, 
+              which: keyCode, 
+              bubbles: true, 
+              cancelable: true 
+            });
+            const keyup = new KeyboardEvent('keyup', { 
+              key, 
+              code: key, 
+              keyCode: keyCode, 
+              which: keyCode, 
+              bubbles: true, 
+              cancelable: true 
+            });
+            
+            slider.dispatchEvent(keydown);
+            slider.dispatchEvent(keyup);
+
+            // Also dispatch directly on the slider container root
+            const container = slider.closest('[class*="slider"], [data-radix-slider-root]') || slider.parentElement;
+            if (container && container !== slider) {
+              container.dispatchEvent(keydown);
+              container.dispatchEvent(keyup);
+            }
+
+            await new Promise(r => setTimeout(r, 150));
+          }
+        }
+
+        // Direct value update as fallback
+        const container = slider.closest('[class*="slider"], [data-radix-slider-root]') || slider.parentElement;
+        if (container) {
+          const hiddenInput = container.querySelector('input');
+          if (hiddenInput) {
+            try {
+              const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+              nativeValueSetter.call(hiddenInput, seconds);
+              hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+              hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+            } catch (e) {
+              console.warn('Failed to set hidden input value directly:', e);
+            }
+          }
         }
       }
 
       // Close the duration slider dialog panel
-      const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true });
+      const escapeEvent = new KeyboardEvent('keydown', { 
+        key: 'Escape', 
+        code: 'Escape', 
+        keyCode: 27, 
+        which: 27, 
+        bubbles: true, 
+        cancelable: true 
+      });
       document.dispatchEvent(escapeEvent);
       await new Promise(r => setTimeout(r, 500));
+
+      // Click body to close if still present
+      const checkSlider = document.querySelector('[role="slider"]') || document.querySelector('.radix-slider-thumb');
+      if (checkSlider) {
+        document.body.click();
+        await new Promise(r => setTimeout(r, 300));
+      }
     },
 
     setResolution: async function (resolution) {
