@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Higgsfield Batch Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <div class="logo-icon">H</div>
+        <h1>Higgsfield Batch</h1>
+      </div>
+      <div class="status-indicator" id="global-status-badge">
+        <span class="status-dot"></span>
+        <span class="status-text" id="global-status-text">Idle</span>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="app-main">
+      <!-- Input Panel -->
+      <section class="panel-section">
+        <div class="section-header">
+          <h2>Video Prompt</h2>
+        </div>
+        <textarea id="prompt-list-input" placeholder="Paste your video generation prompt here."></textarea>
+      </section>
+
+      <!-- Settings Panel -->
+      <section class="panel-section settings-section">
+        <div class="section-header">
+          <h2>Generation Settings</h2>
+        </div>
+
+        <div class="settings-card" id="settings-card">
+          <form class="settings-form" id="settings-form">
+            <div class="form-group">
+              <label for="set-model">Model</label>
+              <select id="set-model">
+                <option value="Enhanced Seedance 2.0 Fast" selected>Enhanced Seedance 2.0 Fast</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="set-duration">Duration (s)</label>
+                <input type="number" id="set-duration" min="4" max="15" value="5">
+              </div>
+              <div class="form-group">
+                <label for="set-resolution">Resolution</label>
+                <select id="set-resolution">
+                  <option value="480p">480p</option>
+                  <option value="720p" selected>720p</option>
+                  <option value="1080p">1080p</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="set-ratio">Ratio</label>
+                <select id="set-ratio">
+                  <option value="16:9" selected>16:9</option>
+                  <option value="9:16">9:16</option>
+                  <option value="1:1">1:1</option>
+                  <option value="Auto">Auto</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="set-bitrate">Bitrate</label>
+                <select id="set-bitrate">
+                  <option value="Low">Low</option>
+                  <option value="Standard">Standard</option>
+                  <option value="High" selected>High</option>
+                </select>
+              </div>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- Active Progress Card -->
+      <section class="panel-section progress-section hidden" id="progress-card">
+        <div class="progress-info">
+          <div class="progress-details">
+            <span class="progress-title" id="active-prompt-title">Generating video...</span>
+            <span class="progress-index" id="active-progress-index">0 / 0</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="progress-bar-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Logs Section -->
+      <section class="panel-section logs-section">
+        <div class="section-header">
+          <h2>Execution Logs</h2>
+          <button id="clear-logs" class="text-btn">Clear View</button>
+        </div>
+        <div class="logs-console" id="logs-console">
+          <div class="log-line system-line">[System] Click "Start Batch" below to begin.</div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Controls Footer -->
+    <footer class="app-footer">
+      <button id="btn-start" class="btn primary-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        Start Batch
+      </button>
+      <button id="btn-fill-only" class="btn secondary-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+        Apply Config
+      </button>
+      <button id="btn-prompt-only" class="btn secondary-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+        Insert Prompt
+      </button>
+      <button id="btn-pause" class="btn secondary-btn hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        Pause
+      </button>
+      <button id="btn-stop" class="btn danger-btn hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+        Stop/Reset
+      </button>
+    </footer>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,9 +1,26 @@
 {
   "manifest_version": 3,
-  "name": "Higgsfield Prompt Extender",
+  "name": "Higgsfield Prompt Extender & Batch Generator",
   "version": "1.0.0",
-  "description": "Enlarge and maximize the prompt edit box on Higgsfield AI for a premium editing experience.",
-  "permissions": [],
+  "description": "Optimize the Higgsfield prompt box layout, resize sidebars, and run sequential batch video generations.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://higgsfield.ai/*"
+  ],
+  "action": {
+    "default_title": "Higgsfield Batch"
+  },
+  "side_panel": {
+    "default_path": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": [
@@ -17,5 +34,10 @@
       ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
 }

@@ -1,0 +1,311 @@
+// Higgsfield Batch Generator Popup Logic (Side Panel)
+
+document.addEventListener('DOMContentLoaded', () => {
+  // UI Elements
+  const promptInput = document.getElementById('prompt-list-input');
+  
+  const badge = document.getElementById('global-status-badge');
+  const badgeText = document.getElementById('global-status-text');
+  
+  const setModel = document.getElementById('set-model');
+  const setDuration = document.getElementById('set-duration');
+  const setResolution = document.getElementById('set-resolution');
+  const setRatio = document.getElementById('set-ratio');
+  const setBitrate = document.getElementById('set-bitrate');
+  
+  const progressCard = document.getElementById('progress-card');
+  const activePromptTitle = document.getElementById('active-prompt-title');
+  const activeProgressIndex = document.getElementById('active-progress-index');
+  const progressBarFill = document.getElementById('progress-bar-fill');
+  
+  const logsConsole = document.getElementById('logs-console');
+  const clearLogsBtn = document.getElementById('clear-logs');
+  
+  const btnStart = document.getElementById('btn-start');
+  const btnFillOnly = document.getElementById('btn-fill-only');
+  const btnPromptOnly = document.getElementById('btn-prompt-only');
+  const btnPause = document.getElementById('btn-pause');
+  const btnStop = document.getElementById('btn-stop');
+
+  let currentStatus = 'idle';
+
+  // Load Saved Input and Settings on open
+  chrome.storage.local.get(['savedPrompts', 'savedSettings'], (data) => {
+    if (data.savedPrompts) {
+      promptInput.value = data.savedPrompts;
+    }
+    if (data.savedSettings) {
+      applySettingsToForm(data.savedSettings);
+    }
+  });
+
+  // Query Background Service Worker status
+  chrome.runtime.sendMessage({ action: 'getStatus' }, (response) => {
+    if (response) {
+      updateUI(response);
+    }
+  });
+
+  // Handle runtime messages from background script
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.action === 'stateUpdated' && message.state) {
+      updateUI(message.state);
+    }
+  });
+
+  // Sync state changes on local storage (updates when content script or background script changes storage)
+  chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (changes.batchState && changes.batchState.newValue) {
+      updateUI(changes.batchState.newValue);
+    }
+  });
+
+  // Listen to prompt textarea input updates
+  promptInput.addEventListener('input', () => {
+    chrome.storage.local.set({ savedPrompts: promptInput.value });
+  });
+
+  // Listen to select/input updates and save to local storage
+  const selectElements = ['set-model', 'set-duration', 'set-resolution', 'set-ratio', 'set-bitrate'];
+  selectElements.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('change', () => {
+        const settings = readSettingsFromForm();
+        chrome.storage.local.set({ savedSettings: settings });
+      });
+    }
+  });
+
+  // Control Buttons Event Listeners
+  btnStart.addEventListener('click', () => {
+    const promptText = promptInput.value.trim();
+    if (promptText.length === 0) {
+      alert('Please enter a video generation prompt.');
+      return;
+    }
+
+    const prompts = [promptText];
+    const settings = readSettingsFromForm();
+    chrome.storage.local.set({ savedSettings: settings });
+
+    if (currentStatus === 'paused') {
+      chrome.runtime.sendMessage({ action: 'resume' }, (response) => {
+        if (response && response.success) {
+          updateUI(response.state);
+        }
+      });
+    } else {
+      chrome.runtime.sendMessage({ action: 'start', prompts, settings }, (response) => {
+        if (response && response.success) {
+          updateUI(response.state);
+        }
+      });
+    }
+  });
+  
+  btnFillOnly.addEventListener('click', () => {
+    const settings = readSettingsFromForm();
+    chrome.storage.local.set({ savedSettings: settings });
+
+    btnFillOnly.disabled = true;
+    const oldText = btnFillOnly.innerHTML;
+    btnFillOnly.textContent = 'Applying...';
+
+    chrome.runtime.sendMessage({ action: 'fillOnly', settings: settings }, (response) => {
+      btnFillOnly.disabled = false;
+      btnFillOnly.innerHTML = oldText;
+      if (chrome.runtime.lastError) {
+        alert('Failed to connect to page context. Please make sure the active tab is on Higgsfield and refresh.');
+      }
+    });
+  });
+
+  btnPromptOnly.addEventListener('click', () => {
+    const promptText = promptInput.value.trim();
+    if (promptText.length === 0) {
+      alert('Please enter a video generation prompt.');
+      return;
+    }
+
+    btnPromptOnly.disabled = true;
+    const oldText = btnPromptOnly.innerHTML;
+    btnPromptOnly.textContent = 'Inserting...';
+
+    chrome.runtime.sendMessage({ action: 'insertPromptOnly', prompt: promptText }, (response) => {
+      btnPromptOnly.disabled = false;
+      btnPromptOnly.innerHTML = oldText;
+      if (chrome.runtime.lastError) {
+        alert('Failed to connect to page context. Please make sure the active tab is on Higgsfield and refresh.');
+      }
+    });
+  });
+
+  btnPause.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ action: 'pause' }, (response) => {
+      if (response && response.success) {
+        updateUI(response.state);
+      }
+    });
+  });
+
+  btnStop.addEventListener('click', () => {
+    if (confirm('Are you sure you want to stop the batch? This will reset the progress.')) {
+      chrome.runtime.sendMessage({ action: 'stop' }, (response) => {
+        if (response && response.success) {
+          updateUI(response.state);
+        }
+      });
+    }
+  });
+
+  // Console Clear
+  clearLogsBtn.addEventListener('click', () => {
+    logsConsole.innerHTML = '<div class="log-line system-line">[Cleared View - logs continue in background]</div>';
+  });
+
+  // Helper: Get the prompt text (single prompt mode)
+  function getPromptText() {
+    return promptInput.value.trim();
+  }
+
+  // Helper: Read setting states from DOM form elements
+  function readSettingsFromForm() {
+    return {
+      model: setModel.value,
+      duration: parseInt(setDuration.value, 10) || 5,
+      resolution: setResolution.value,
+      ratio: setRatio.value,
+      bitrate: setBitrate.value
+    };
+  }
+
+  // Helper: Sync values to form input elements
+  function applySettingsToForm(settings) {
+    if (!settings) return;
+    setModel.value = settings.model || 'Enhanced Seedance 2.0 Fast';
+    setDuration.value = settings.duration || 5;
+    setResolution.value = settings.resolution || '720p';
+    setRatio.value = settings.ratio || '16:9';
+    setBitrate.value = settings.bitrate || 'High';
+  }
+
+  // Render Full State to UI Layout
+  function updateUI(state) {
+    if (!state) return;
+
+    currentStatus = state.status;
+
+    // Update Status Badge Styling
+    badge.className = 'status-indicator';
+    badge.classList.add(state.status);
+    badgeText.textContent = state.status;
+
+    // Sync form settings if not running
+    if (state.status !== 'running' && state.status !== 'paused') {
+      applySettingsToForm(state.settings);
+    }
+
+    // Layout configuration based on run status
+    if (state.status === 'running') {
+      promptInput.disabled = true;
+      setModel.disabled = true;
+      setDuration.disabled = true;
+      setResolution.disabled = true;
+      setRatio.disabled = true;
+      setBitrate.disabled = true;
+      
+      // Setup progress bar details
+      progressCard.classList.remove('hidden');
+      
+      const total = state.prompts.length;
+      const index = state.currentIndex;
+      const currentPromptText = state.prompts[index] || '';
+      
+      activePromptTitle.textContent = currentPromptText;
+      activePromptTitle.title = currentPromptText;
+      activeProgressIndex.textContent = `${index + 1} / ${total}`;
+      
+      const pct = total > 0 ? (index / total) * 100 : 0;
+      progressBarFill.style.width = `${pct}%`;
+      
+      // Control buttons toggle
+      btnStart.classList.add('hidden');
+      btnFillOnly.classList.add('hidden');
+      btnPromptOnly.classList.add('hidden');
+      btnPause.classList.remove('hidden');
+      btnStop.classList.remove('hidden');
+    } 
+    
+    else if (state.status === 'paused') {
+      promptInput.disabled = true;
+      setModel.disabled = true;
+      setDuration.disabled = true;
+      setResolution.disabled = true;
+      setRatio.disabled = true;
+      setBitrate.disabled = true;
+      progressCard.classList.remove('hidden');
+      
+      btnStart.classList.remove('hidden');
+      btnStart.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        Resume Batch
+      `;
+      btnFillOnly.classList.add('hidden');
+      btnPromptOnly.classList.add('hidden');
+      btnPause.classList.add('hidden');
+      btnStop.classList.remove('hidden');
+    } 
+    
+    else {
+      // stopped, idle, done
+      promptInput.disabled = false;
+      setModel.disabled = false;
+      setDuration.disabled = false;
+      setResolution.disabled = false;
+      setRatio.disabled = false;
+      setBitrate.disabled = false;
+      progressCard.classList.add('hidden');
+      
+      btnStart.classList.remove('hidden');
+      btnStart.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        Start Batch
+      `;
+      btnFillOnly.classList.remove('hidden');
+      btnPromptOnly.classList.remove('hidden');
+      btnPause.classList.add('hidden');
+      btnStop.classList.add('hidden');
+    }
+
+    // Refresh Logs
+    renderLogs(state.log);
+  }
+
+  function renderLogs(logs) {
+    if (!logs || logs.length === 0) return;
+    
+    logsConsole.innerHTML = '';
+    logs.forEach(log => {
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      
+      // Color code highlights
+      if (log.includes('ERROR')) {
+        line.style.color = 'var(--danger-color)';
+      } else if (log.includes('WARNING')) {
+        line.style.color = '#f59e0b';
+      } else if (log.includes('completed successfully') || log.includes('Batch completed')) {
+        line.style.color = 'var(--success-color)';
+      } else if (log.includes('Processing prompt')) {
+        line.style.color = 'var(--brand-color)';
+      }
+      
+      line.textContent = log;
+      logsConsole.appendChild(line);
+    });
+    
+    // Auto Scroll console
+    logsConsole.scrollTop = logsConsole.scrollHeight;
+  }
+});
