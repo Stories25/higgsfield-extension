@@ -288,9 +288,24 @@
 
     let optionEl = null;
     for (const container of dropdowns) {
-      const options = Array.from(container.querySelectorAll('[role="option"], [role="menuitem"], button, div, span, a, li, p'));
-      optionEl = options.find(el => isMatchingOption(el, optionText));
-      if (optionEl) break;
+      const allEls = Array.from(container.querySelectorAll('[role="option"], [role="menuitem"], button, div, span, a, li, p'));
+      const matchingEls = allEls.filter(el => isMatchingOption(el, optionText));
+      
+      // Filter to the deepest elements to avoid clicking wrapper containers
+      const deepestMatches = matchingEls.filter(el => {
+        return !matchingEls.some(other => other !== el && el.contains(other));
+      });
+      
+      if (deepestMatches.length > 0) {
+        // If there are multiple matches, sort by text length to find the closest match
+        deepestMatches.sort((a, b) => {
+          const aLen = (a.textContent || '').trim().length;
+          const bLen = (b.textContent || '').trim().length;
+          return aLen - bLen;
+        });
+        optionEl = deepestMatches[0];
+        break;
+      }
     }
 
     if (!optionEl) {
@@ -304,16 +319,20 @@
         return rect.width > 0 && rect.height > 0;
       });
       
-      const matches = globalCandidates.filter(el => isMatchingOption(el, optionText));
+      const matchingEls = globalCandidates.filter(el => isMatchingOption(el, optionText));
       
-      // Sort matches to find the one closest in length to the target text to avoid matching larger container elements
-      if (matches.length > 0) {
-        matches.sort((a, b) => {
+      // Filter to the deepest matching elements
+      const deepestMatches = matchingEls.filter(el => {
+        return !matchingEls.some(other => other !== el && el.contains(other));
+      });
+      
+      if (deepestMatches.length > 0) {
+        deepestMatches.sort((a, b) => {
           const aLen = (a.textContent || '').trim().length;
           const bLen = (b.textContent || '').trim().length;
           return aLen - bLen;
         });
-        optionEl = matches[0];
+        optionEl = deepestMatches[0];
       }
     }
 
@@ -794,7 +813,7 @@
       const buttons = Array.from(document.querySelectorAll('button'));
       for (const btn of buttons) {
         const text = (btn.textContent || '').trim().toLowerCase();
-        if (text.includes('generate unlimited') || text === 'generate') {
+        if (text.includes('generate')) {
           generateBtn = btn;
           break;
         }

@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearLogsBtn = document.getElementById('clear-logs');
   
   const btnStart = document.getElementById('btn-start');
+  const btnCheckStart = document.getElementById('btn-check-start');
   const btnFillOnly = document.getElementById('btn-fill-only');
   const btnClearForm = document.getElementById('btn-clear-form');
   const btnPromptOnly = document.getElementById('btn-prompt-only');
@@ -77,16 +78,10 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
   });
-
   // Control Buttons Event Listeners
   btnStart.addEventListener('click', () => {
     const promptText = promptInput.value.trim();
-    if (promptText.length === 0) {
-      alert('Please enter a video generation prompt.');
-      return;
-    }
-
-    const prompts = [promptText];
+    const prompts = promptText.length > 0 ? [promptText] : [''];
     const settings = readSettingsFromForm();
     chrome.storage.local.set({ savedSettings: settings });
 
@@ -97,12 +92,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     } else {
-      chrome.runtime.sendMessage({ action: 'start', prompts, settings }, (response) => {
+      chrome.runtime.sendMessage({ action: 'start', prompts, settings, useCheck: false }, (response) => {
         if (response && response.success) {
           updateUI(response.state);
         }
       });
     }
+  });
+
+  btnCheckStart.addEventListener('click', () => {
+    const promptText = promptInput.value.trim();
+    const prompts = promptText.length > 0 ? [promptText] : [''];
+    const settings = readSettingsFromForm();
+    chrome.storage.local.set({ savedSettings: settings });
+
+    chrome.runtime.sendMessage({ action: 'start', prompts, settings, useCheck: true }, (response) => {
+      if (response && response.success) {
+        updateUI(response.state);
+      }
+    });
   });
   
   btnFillOnly.addEventListener('click', () => {
@@ -246,6 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Control buttons toggle
       btnStart.classList.add('hidden');
+      btnCheckStart.classList.add('hidden');
       btnFillOnly.classList.add('hidden');
       btnClearForm.classList.add('hidden');
       btnPromptOnly.classList.add('hidden');
@@ -265,8 +274,9 @@ document.addEventListener('DOMContentLoaded', () => {
       btnStart.classList.remove('hidden');
       btnStart.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-        Resume Batch
+        Resume
       `;
+      btnCheckStart.classList.add('hidden');
       btnFillOnly.classList.add('hidden');
       btnClearForm.classList.add('hidden');
       btnPromptOnly.classList.add('hidden');
@@ -287,8 +297,9 @@ document.addEventListener('DOMContentLoaded', () => {
       btnStart.classList.remove('hidden');
       btnStart.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-        Start Batch
+        Generate
       `;
+      btnCheckStart.classList.remove('hidden');
       btnFillOnly.classList.remove('hidden');
       btnClearForm.classList.remove('hidden');
       btnPromptOnly.classList.remove('hidden');

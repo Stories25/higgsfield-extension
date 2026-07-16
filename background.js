@@ -17,7 +17,8 @@ let batchState = {
     bitrate: 'High'
   },
   log: [],
-  targetTabId: null
+  targetTabId: null,
+  useCheck: false
 };
 
 // Load initial state from storage if it exists
@@ -28,7 +29,7 @@ chrome.storage.local.get(['batchState'], (result) => {
     // For safety, if it was running, we set it to paused.
     if (batchState.status === 'running') {
       batchState.status = 'paused';
-      addLog('Extension restarted: batch paused.');
+      addLog('Extension restarted: generation paused.');
       saveState();
     }
   }
@@ -114,13 +115,13 @@ async function getHiggsfieldTab() {
 // Core Batch Execution Loop
 async function processNextPrompt() {
   if (batchState.status !== 'running') {
-    addLog('Batch processing paused or stopped.');
+    addLog('Generation paused or stopped.');
     return;
   }
 
   if (batchState.currentIndex >= batchState.prompts.length) {
     batchState.status = 'done';
-    addLog('Batch completed successfully!');
+    addLog('Generation completed successfully!');
     saveState();
     return;
   }
@@ -139,40 +140,25 @@ async function processNextPrompt() {
       addLog('Navigated to Video Page. Waiting for load...');
       await new Promise(r => setTimeout(r, 3000));
     }
-
-    // 2. Clear the prompt box and any selected media first (keeping only referenced media)
-    addLog('Clearing existing prompt text and selected images...');
-    await chrome.tabs.sendMessage(tab.id, { action: 'resetForm', prompt: currentPrompt });
-    addLog('Prompt box cleared. Waiting for UI to settle...');
-    await new Promise(r => setTimeout(r, 500));
-
-    // 3. Apply settings
-    addLog(`Setting model to "${batchState.settings.model}"...`);
-    await chrome.tabs.sendMessage(tab.id, { action: 'setModel', model: batchState.settings.model });
-
-    addLog(`Setting duration to ${batchState.settings.duration} seconds...`);
-    await chrome.tabs.sendMessage(tab.id, { action: 'setDuration', duration: batchState.settings.duration });
-
-    addLog(`Setting resolution to "${batchState.settings.resolution}"...`);
-    await chrome.tabs.sendMessage(tab.id, { action: 'setResolution', resolution: batchState.settings.resolution });
-
-    addLog(`Setting ratio to "${batchState.settings.ratio}"...`);
-    await chrome.tabs.sendMessage(tab.id, { action: 'setRatio', ratio: batchState.settings.ratio });
-
-    addLog(`Setting bitrate to "${batchState.settings.bitrate}"...`);
-    await chrome.tabs.sendMessage(tab.id, { action: 'setBitrate', bitrate: batchState.settings.bitrate });
-
-    // 4. Fill text prompt
-    addLog('Entering text prompt...');
-    await chrome.tabs.sendMessage(tab.id, { action: 'setPrompt', prompt: currentPrompt });
-
-    // 5. Check if credits are available or if warning exists before click
-    const beforeStats = await chrome.tabs.sendMessage(tab.id, { action: 'checkStatusBanners' });
-    if (beforeStats && beforeStats.creditsExhausted) {
-      batchState.status = 'paused';
-      addLog('ERROR: Credits exhausted. Pausing batch.');
-      saveState();
-      return;
+    // 2. If safe-check is enabled, poll until no active generations exist
+    if (batchState.useCheck) {
+      addLog('Checking if page has active generations processing...');
+      let isProcessing = true;
+      while (isProcessing) {
+        if (batchState.status !== 'running') {
+          addLog('Generation process interrupted.');
+          return;
+        }
+        
+        const count = await chrome.tabs.sendMessage(tab.id, { action: 'getActiveGenerationCount' });
+        if (count === 0) {
+          isProcessing = false;
+        } else {
+          addLog(`Active generation still in progress (Count: ${count}). Waiting 5 seconds...`);
+          await new Promise(r => setTimeout(r, 5000));
+        }
+      }
+      addLog('Page clear. Proceeding to generate...');
     }
 
     // 6. Click generate
@@ -188,7 +174,7 @@ async function processNextPrompt() {
 
     while (!complete) {
       if (batchState.status !== 'running') {
-        addLog('Batch interrupted while waiting for generation.');
+        addLog('Generation process interrupted.');
         return;
       }
 
@@ -206,7 +192,7 @@ async function processNextPrompt() {
       if (statusCheck) {
         if (statusCheck.creditsExhausted) {
           batchState.status = 'paused';
-          addLog('ERROR: Credits exhausted mid-batch. Pausing execution.');
+          addLog('ERROR: Credits exhausted. Pausing execution.');
           saveState();
           return;
         }
@@ -250,7 +236,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     batchState.currentIndex = 0;
     batchState.status = 'running';
     batchState.log = [];
-    addLog('Starting batch video generation...');
+    batchState.useCheck = !!request.useCheck;
+    addLog('Starting video generation...');
     saveState();
     
     // Launch execution loop asynchronously
@@ -262,7 +249,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (batchState.status === 'paused' || batchState.status === 'stopped') {
       batchState.status = 'running';
       if (batchState.currentIndex < 0) batchState.currentIndex = 0;
-      addLog('Resuming batch processing...');
+      addLog('Resuming generation...');
       saveState();
       
       processNextPrompt();
@@ -274,14 +261,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   
   else if (request.action === 'stop') {
     batchState.status = 'stopped';
-    addLog('Batch processing stopped by user.');
+    addLog('Generation process stopped.');
     saveState();
     sendResponse({ success: true, state: batchState });
   } 
   
   else if (request.action === 'pause') {
     batchState.status = 'paused';
-    addLog('Batch processing paused by user.');
+    addLog('Generation process paused.');
     saveState();
     sendResponse({ success: true, state: batchState });
   } 
