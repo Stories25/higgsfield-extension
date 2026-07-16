@@ -1,6 +1,15 @@
 (function () {
   'use strict';
 
+  // Helper: safely get className as string (SVG elements use SVGAnimatedString)
+  function safeClassName(el) {
+    if (!el) return '';
+    const cn = el.className;
+    if (typeof cn === 'string') return cn;
+    if (cn && typeof cn.baseVal === 'string') return cn.baseVal; // SVGAnimatedString
+    return '';
+  }
+
   // Find the sidebar container ancestor of the prompt editor
   function getSidebar() {
     const editor = document.querySelector('div[data-lexical-editor="true"][role="textbox"]');
@@ -8,7 +17,7 @@
       let current = editor;
       while (current && current !== document.body) {
         if (current.classList.contains('w-[380px]') || 
-            current.className.includes('w-[380px]') ||
+            safeClassName(current).includes('w-[380px]') ||
             (current.classList.contains('border-r') && current.classList.contains('shrink-0'))) {
           return current;
         }
@@ -526,7 +535,7 @@
           for (const el of elements) {
             const text = (el.textContent || '').trim().toLowerCase();
             const label = (el.getAttribute('aria-label') || el.getAttribute('title') || '').toLowerCase();
-            const className = (el.className || '').toLowerCase();
+            const className = safeClassName(el).toLowerCase();
             
             // Exclude main upload / change / edit triggers
             if (text.includes('change') || text.includes('edit') || text.includes('upload') ||
@@ -563,7 +572,11 @@
                 el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
                 el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
                 el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-                el.click();
+                if (typeof el.click === 'function') {
+                  el.click();
+                } else {
+                  el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                }
                 
                 removedCount++;
                 clicked = true;
@@ -827,51 +840,194 @@
         throw new Error('Generate button is currently disabled (possible rendering in progress or zero credits)');
       }
 
+      // Dispatch full pointer/mouse event sequence for React compatibility
+      generateBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      generateBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      generateBtn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+      generateBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
       generateBtn.click();
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 1500));
+    },
+
+    isElementVisible: function (el) {
+      if (!el) return false;
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return false;
+      
+      try {
+        let current = el;
+        while (current && current !== document.documentElement) {
+          if (current.nodeType === Node.ELEMENT_NODE) {
+            const style = window.getComputedStyle(current);
+            if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) {
+              return false;
+            }
+          }
+          
+          // Traverse up, crossing shadow DOM boundaries if present
+          if (current.parentElement) {
+            current = current.parentElement;
+          } else {
+            const parent = current.parentNode;
+            if (parent) {
+              current = parent;
+            } else if (current.host) {
+              current = current.host;
+            } else {
+              current = null;
+            }
+          }
+        }
+      } catch (e) {
+        // Fallback for detached elements
+      }
+      return true;
     },
 
     getActiveGenerationCount: async function () {
-      const textNodes = [];
-      const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-      let node;
-      while (node = walk.nextNode()) {
-        const text = node.nodeValue.trim().toLowerCase();
-        if (text.includes('processing') || text.includes('generating') || text.includes('in queue') || text.includes('rendering')) {
-          const parent = node.parentElement;
-          if (parent && parent.getBoundingClientRect().width > 0 && parent.getBoundingClientRect().height > 0) {
-            textNodes.push(parent);
+      console.log('[HF-EXT] getActiveGenerationCount called');
+      try {
+        const sidebar = getSidebar();
+        console.log('[HF-EXT] sidebar found:', !!sidebar);
+        const textNodes = [];
+        const diagnosticInfo = [];
+
+
+
+        const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        let scannedCount = 0;
+        let keywordHits = 0;
+        
+        const statusKeywords = [
+          'processing', 'generating', 'in queue', 'rendering',
+          'queued', 'in progress', 'creating', 'waiting',
+          'starting', 'pending', 'preparing', 'uploading',
+          'submitted', 'initializing'
+        ];
+
+        while (node = walk.nextNode()) {
+          scannedCount++;
+          const rawText = node.nodeValue.trim().toLowerCase();
+          const text = rawText.replace(/\.+$/, '');
+          
+          if (statusKeywords.includes(text)) {
+            keywordHits++;
+            const parent = node.parentElement;
+            console.log(`[HF-EXT] Keyword match: "${rawText}" | parent: ${parent?.tagName} | class: ${safeClassName(parent)?.substring(0, 80)}`);
+            
+            if (parent) {
+              const isVisible = this.isElementVisible(parent);
+              const inSidebar = sidebar && sidebar.contains(parent);
+              console.log(`[HF-EXT]   visible: ${isVisible} | inSidebar: ${inSidebar}`);
+              
+              if (isVisible) {
+                const card = parent.closest('li, [class*="item"], [class*="card"], [class*="history"]') || parent;
+                textNodes.push(card);
+                
+                diagnosticInfo.push({
+                  source: 'text_match',
+                  matchedText: rawText,
+                  tag: card.tagName || '',
+                  id: card.id || '',
+                  class: safeClassName(card),
+                  textContent: card.textContent?.substring(0, 60).trim().replace(/\s+/g, ' ') || ''
+                });
+              }
+            }
           }
         }
-      }
 
-      // Scan for visual spinner/loader elements (catches blank spinner cards)
-      const spinnerSelectors = [
-        '.animate-spin',
-        '[class*="spinner"]',
-        '[class*="loader"]',
-        '[class*="loading"]',
-        '[class*="processing"]',
-        'svg animateTransform',
-        '[role="progressbar"]',
-        '[aria-busy="true"]'
-      ];
+        console.log(`[HF-EXT] Text scan done. Scanned: ${scannedCount} nodes, keyword hits: ${keywordHits}, matched cards: ${textNodes.length}`);
 
-      const spinners = Array.from(document.querySelectorAll(spinnerSelectors.join(', ')));
-      for (const spinner of spinners) {
-        // Skip elements inside the extension popup/sidebar itself
-        if (spinner.closest('#higgsfield-batch-sidebar') || spinner.closest('.app-container')) continue;
+        // Scan for visual spinner/loader elements
+        const spinnerSelectors = [
+          '.animate-spin',
+          '[class*="spinner"]',
+          '[class*="loader"]',
+          '[class*="loading"]',
+          '[class*="processing"]',
+          'svg animateTransform',
+          '[role="progressbar"]',
+          '[aria-busy="true"]'
+        ];
 
-        // Check if the spinner is visible
-        const rect = spinner.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
-          const card = spinner.closest('li, [class*="item"], [class*="card"], [class*="history"]') || spinner;
-          textNodes.push(card);
+        const spinners = Array.from(document.querySelectorAll(spinnerSelectors.join(', ')));
+        console.log(`[HF-EXT] Spinner elements found: ${spinners.length}`);
+        
+        for (const spinner of spinners) {
+          if (spinner.closest('#higgsfield-batch-sidebar') || spinner.closest('.app-container')) continue;
+          if (sidebar && sidebar.contains(spinner)) continue;
+
+          const cn = safeClassName(spinner).toLowerCase();
+          const idName = spinner.id && typeof spinner.id === 'string' ? spinner.id.toLowerCase() : '';
+          if (cn.includes('uploader') || idName.includes('uploader')) continue;
+
+          const rect = spinner.getBoundingClientRect();
+          if (rect.width > 80 && rect.height > 80) continue;
+
+          if (this.isElementVisible(spinner)) {
+            const card = spinner.closest('li, [class*="item"], [class*="card"], [class*="history"]') || spinner;
+            textNodes.push(card);
+            
+            diagnosticInfo.push({
+              source: 'selector_match',
+              selector: spinner.tagName.toLowerCase() + (cn ? '.' + cn.split(' ').join('.') : ''),
+              tag: card.tagName || '',
+              id: card.id || '',
+              class: safeClassName(card),
+              textContent: card.textContent?.substring(0, 60).trim().replace(/\s+/g, ' ') || ''
+            });
+          }
         }
-      }
 
-      const uniqueParents = new Set(textNodes);
-      return uniqueParents.size;
+        const uniqueParents = new Set(textNodes);
+        console.log(`[HF-EXT] Unique matched parents: ${uniqueParents.size}`);
+        
+        const uniqueDetails = [];
+        const seenCards = new Set();
+        for (const diag of diagnosticInfo) {
+          const matchingCard = Array.from(uniqueParents).find(p => safeClassName(p) === diag.class && p.id === diag.id && p.tagName === diag.tag);
+          if (matchingCard && !seenCards.has(matchingCard)) {
+            seenCards.add(matchingCard);
+            uniqueDetails.push(diag);
+          }
+        }
+
+        // When count is 0, collect page text hints for diagnostics
+        let pageScanHints = [];
+        if (uniqueParents.size === 0) {
+          console.log('[HF-EXT] Count is 0 — scanning page text for hints...');
+          const scanWalk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+          let scanNode;
+          const seen = new Set();
+          while (scanNode = scanWalk.nextNode()) {
+            const scanText = scanNode.nodeValue.trim().toLowerCase();
+            if (scanText.length >= 3 && scanText.length <= 40 && !seen.has(scanText)) {
+              const scanParent = scanNode.parentElement;
+              if (scanParent && this.isElementVisible(scanParent)) {
+                if (scanParent.closest('#higgsfield-batch-sidebar') || scanParent.closest('.app-container')) continue;
+                if (sidebar && sidebar.contains(scanParent)) continue;
+                seen.add(scanText);
+                pageScanHints.push(scanText);
+                if (pageScanHints.length >= 30) break;
+              }
+            }
+          }
+          console.log(`[HF-EXT] Page hints: ${JSON.stringify(pageScanHints.slice(0, 10))}`);
+        }
+
+        const result = {
+          count: uniqueParents.size,
+          details: uniqueDetails,
+          pageScanHints: pageScanHints
+        };
+        console.log(`[HF-EXT] Returning:`, JSON.stringify({ count: result.count, detailCount: result.details.length, hintCount: result.pageScanHints.length }));
+        return result;
+      } catch (err) {
+        console.error('[HF-EXT] getActiveGenerationCount CRASHED:', err);
+        return { count: 0, details: [], pageScanHints: ['FUNCTION_CRASHED: ' + (err.message || err)] };
+      }
     },
 
     checkStatusBanners: async function () {
@@ -910,6 +1066,123 @@
       }
 
       return stats;
+    },
+
+    runPromptPipeline: async function (options) {
+      const { promptText, settings, jobTag, useCheck } = options;
+      
+      const sendPipelineLog = (text) => {
+        chrome.runtime.sendMessage({ action: 'pipelineLog', text: `${jobTag} ${text}` });
+      };
+
+      const sendPipelineFinished = (status, errorMsg = '', details = []) => {
+        chrome.runtime.sendMessage({
+          action: 'pipelineFinished',
+          status,
+          errorMsg,
+          details
+        });
+      };
+
+      try {
+        // Phase 1: Wait-for-Clear loop
+        if (useCheck) {
+          sendPipelineLog('Checking for active generations...');
+          let attempt = 0;
+          while (true) {
+            const activeCheck = await this.getActiveGenerationCount();
+            if (activeCheck.count === 0) {
+              sendPipelineLog('Page clear detected. Proceeding to setup...');
+              break;
+            }
+
+            const detailsStr = (activeCheck.details || []).map(d => {
+              if (d.source === 'text_match') {
+                return `TextMatch("${d.matchedText}" in ${d.tag}.${d.class.split(' ').join('.')})`;
+              } else {
+                return `SelectorMatch(${d.selector} in ${d.tag}.${d.class.split(' ').join('.')})`;
+              }
+            }).join(' | ');
+
+            sendPipelineLog(`Active generation still in progress (Count: ${activeCheck.count}). Matches: [${detailsStr}].`);
+            
+            const interval = attempt % 2 === 0 ? 30000 : 60000;
+            sendPipelineLog(`Waiting ${interval / 1000} seconds before retrying clear check...`);
+            await new Promise(r => setTimeout(r, interval));
+            attempt++;
+          }
+        }
+
+        // Phase 2: Form Setup
+        sendPipelineLog('Step 1: Applying configurations (Apply Config)...');
+        await this.resetForm(promptText);
+        await this.setModel(settings.model);
+        await this.setDuration(settings.duration);
+        await this.setResolution(settings.resolution);
+        await this.setRatio(settings.ratio);
+        await this.setBitrate(settings.bitrate);
+
+        sendPipelineLog('Step 2: Clearing form (Clear Form)...');
+        await this.resetForm(promptText);
+
+        sendPipelineLog('Step 3: Inserting prompt text (Insert Prompt)...');
+        await this.setPrompt(promptText);
+
+        // Phase 3: Click Generate & Wait-for-Processing Loop
+        sendPipelineLog('Step 4: Clicking Generate button (Generate)...');
+        try {
+          await this.clickGenerate();
+        } catch (err) {
+          sendPipelineLog(`Initial Click Generate warning: ${err.message || err}. Will retry in polling loop.`);
+        }
+
+        // Check if started immediately (zero-wait check)
+        let activeCheck = await this.getActiveGenerationCount();
+        if (activeCheck.count > 0) {
+          sendPipelineFinished('done', '', activeCheck.details);
+          return;
+        }
+
+        sendPipelineLog('Generation has not started immediately. Entering indefinite alternating polling retry loop...');
+        let attempt = 0;
+        while (true) {
+          // Alternate wait interval: 30s for attempt 0, 2, 4... and 60s for attempt 1, 3, 5...
+          const interval = attempt % 2 === 0 ? 30000 : 60000;
+          sendPipelineLog(`Waiting ${interval / 1000} seconds before retrying check...`);
+          await new Promise(r => setTimeout(r, interval));
+
+          // Check status and active count
+          const statusCheck = await this.checkStatusBanners();
+          if (statusCheck.nsfwDetected) {
+            sendPipelineLog('WARNING: Prompt flagged as NSFW/Policy violation. Skipping.');
+            sendPipelineFinished('failed', 'NSFW/Policy violation');
+            return;
+          }
+          if (statusCheck.failed) {
+            sendPipelineLog('WARNING: Generation failed or was refunded. Skipping.');
+            sendPipelineFinished('failed', 'Generation failed or refunded');
+            return;
+          }
+
+          activeCheck = await this.getActiveGenerationCount();
+          if (activeCheck.count > 0) {
+            sendPipelineFinished('done', '', activeCheck.details);
+            return;
+          }
+
+          sendPipelineLog('Generation still not started. Re-attempting click Generate...');
+          try {
+            await this.clickGenerate();
+          } catch (err) {
+            sendPipelineLog(`Click Generate failed: ${err.message || err}. Will retry polling.`);
+          }
+          attempt++;
+        }
+
+      } catch (err) {
+        sendPipelineLog(`CRITICAL PIPELINE ERROR: ${err.message || err}`);
+        sendPipelineFinished('failed', err.message || err);
+      }
     }
   };
 
@@ -921,6 +1194,13 @@
     if (request.action === 'ping') {
       sendResponse({ status: 'ok' });
       return;
+    }
+
+    if (request.action === 'runPromptPipeline') {
+      automationBridge.runPromptPipeline(request.options)
+        .then(() => sendResponse({ status: 'started' }))
+        .catch(err => sendResponse({ error: err.message || err }));
+      return true; // Keep open for asynchronous reply
     }
 
     if (automationBridge[request.action]) {

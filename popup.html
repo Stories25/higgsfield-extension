@@ -30,7 +30,38 @@
         <div class="section-header">
           <h2>Video Prompt</h2>
         </div>
-        <textarea id="prompt-list-input" placeholder="Paste your video generation prompt here."></textarea>
+        <textarea id="prompt-list-input" placeholder="Enter prompt text here..."></textarea>
+        <div class="prompt-input-actions">
+          <button id="btn-add-prompt" class="btn secondary-btn small-btn" type="button">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Add Prompt
+          </button>
+          <div class="bulk-import-group">
+            <button id="btn-bulk-import" class="btn secondary-btn small-btn" type="button">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              Bulk Import
+            </button>
+            <div class="delimiter-select-wrapper">
+              <span class="delimiter-label">Split:</span>
+              <select id="import-delimiter">
+                <option value="newline" selected>New Line</option>
+                <option value="double-newline">Double New Line</option>
+                <option value="semicolon">Semicolon (;)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Queue Section -->
+      <section class="panel-section queue-section">
+        <div class="section-header">
+          <h2>Prompt Queue (<span id="queue-count">0</span>)</h2>
+          <button id="btn-clear-queue" class="text-btn" type="button">Clear Queue</button>
+        </div>
+        <div class="queue-list" id="queue-list-container">
+          <div class="queue-empty-state">No prompts in queue. Add some above to start.</div>
+        </div>
       </section>
 
       <!-- Settings Panel -->
@@ -45,6 +76,8 @@
               <label for="set-model">Model</label>
               <select id="set-model">
                 <option value="Enhanced Seedance 2.0 Fast" selected>Enhanced Seedance 2.0 Fast</option>
+                <option value="Seedance 2.0">Seedance 2.0</option>
+                <option value="Seedance 2.0 Unlimited">Seedance 2.0 Unlimited</option>
               </select>
             </div>
             <div class="form-row">
@@ -114,7 +147,7 @@
 
       <button id="btn-check-start" class="btn primary-btn" style="background-color: #f59e0b; color: #000000;">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-        Check & Generate
+        Generate All
       </button>
       <button id="btn-fill-only" class="btn secondary-btn">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>

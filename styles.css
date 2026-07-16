@@ -464,3 +464,203 @@ select:focus, input[type="number"]:focus {
   height: 0;
   overflow: hidden;
 }
+
+/* Prompt Input Actions */
+.prompt-input-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.small-btn {
+  padding: 6px 10px !important;
+  font-size: 11px !important;
+  height: 32px;
+  flex: none !important;
+}
+
+.bulk-import-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.delimiter-select-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 2px 8px;
+  height: 32px;
+}
+
+.delimiter-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  user-select: none;
+}
+
+#import-delimiter {
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  padding: 0 16px 0 0;
+  width: auto;
+  cursor: pointer;
+  color: var(--text-secondary);
+  height: auto;
+}
+
+#import-delimiter:focus {
+  outline: none;
+  border-color: transparent;
+}
+
+/* Queue List Container */
+.queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.queue-list::-webkit-scrollbar {
+  width: 4px;
+}
+.queue-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.queue-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+}
+
+.queue-empty-state {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-muted);
+  font-size: 12px;
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.01);
+}
+
+/* Queue Item Card */
+.queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  transition: var(--transition-fast);
+}
+
+.queue-item:hover {
+  border-color: var(--border-focus);
+}
+
+.queue-item.running {
+  border-color: rgba(209, 254, 23, 0.3);
+  background-color: rgba(209, 254, 23, 0.02);
+}
+
+.queue-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.queue-item-text {
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.queue-item-index {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* Item Status Badge */
+.status-badge {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+}
+
+.status-badge.queued {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.status-badge.running {
+  background-color: var(--brand-color-dim);
+  color: var(--brand-color);
+  border: 1px solid rgba(209, 254, 23, 0.2);
+}
+
+.status-badge.done {
+  background-color: var(--success-color-dim);
+  color: var(--success-color);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.status-badge.failed {
+  background-color: var(--danger-color-dim);
+  color: var(--danger-color);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Delete button */
+.btn-remove-item {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-fast);
+}
+
+.btn-remove-item:hover:not(:disabled) {
+  color: var(--danger-color);
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.btn-remove-item:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
