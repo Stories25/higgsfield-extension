@@ -35,17 +35,7 @@ chrome.storage.local.get(['batchState'], (result) => {
       }));
     }
 
-    // Safety: pause if it was running when shutdown
-    if (batchState.status === 'running') {
-      batchState.status = 'paused';
-      if (batchState.currentIndex >= 0 && batchState.currentIndex < batchState.prompts.length) {
-        if (batchState.prompts[batchState.currentIndex].status === 'running') {
-          batchState.prompts[batchState.currentIndex].status = 'queued';
-        }
-      }
-      addLog('Extension restarted: generation paused.');
-      saveState();
-    }
+
   }
 });
 
