@@ -604,8 +604,28 @@
       }
     },
 
-    setModel: async function (model) {
-      await selectDropdownOption('Model', model);
+    getSelectedModel: async function () {
+      // Find the model button
+      let btn = findButtonNearLabel('Model');
+      if (!btn) {
+        // Fallback: search for buttons carrying current model states
+        const sidebar = getSidebar();
+        const allButtons = Array.from(document.querySelectorAll('button')).filter(b => {
+          if (sidebar && sidebar.contains(b)) return true;
+          const rect = b.getBoundingClientRect();
+          return rect.left < 850 && rect.top > 90;
+        });
+        for (const b of allButtons) {
+          const text = (b.textContent || '').trim();
+          if (text.includes('Fast') || text.includes('Enhanced') || text.includes('Seedance')) {
+            return text;
+          }
+        }
+      }
+      if (btn) {
+        return (btn.textContent || '').trim();
+      }
+      return 'Default Model';
     },
 
     setDuration: async function (seconds) {
@@ -1129,7 +1149,8 @@
         // Phase 2: Form Setup
         sendPipelineLog('Step 1: Applying configurations (Apply Config)...');
         await this.resetForm(promptText);
-        await this.setModel(settings.model);
+        const activeModel = await this.getSelectedModel();
+        sendPipelineLog(`[Steve Jobs Thinking] Simplified UI: Using Higgsfield page's selected model: "${activeModel}"`);
         await this.setDuration(settings.duration);
         await this.setResolution(settings.resolution);
         await this.setRatio(settings.ratio);

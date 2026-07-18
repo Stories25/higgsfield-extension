@@ -10,7 +10,6 @@ let batchState = {
   prompts: [],
   currentIndex: -1,
   settings: {
-    model: 'Enhanced Seedance 2.0 Fast',
     duration: 5,
     resolution: '720p',
     ratio: '16:9',
@@ -367,9 +366,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         addLog('Clearing existing prompt text and selected images...');
         await chrome.tabs.sendMessage(tab.id, { action: 'resetForm', prompt: '' });
 
-        // 2. Set settings configs
-        addLog(`Applying model: "${request.settings.model}"...`);
-        await chrome.tabs.sendMessage(tab.id, { action: 'setModel', model: request.settings.model });
+        // 2. Log currently selected model
+        const activeModel = await chrome.tabs.sendMessage(tab.id, { action: 'getSelectedModel' }).catch(() => 'Unknown');
+        addLog(`Using webpage's selected model: "${activeModel}"`);
 
         addLog(`Applying duration: ${request.settings.duration}s...`);
         await chrome.tabs.sendMessage(tab.id, { action: 'setDuration', duration: request.settings.duration });

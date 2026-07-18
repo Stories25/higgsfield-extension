@@ -7,7 +7,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const badge = document.getElementById('global-status-badge');
   const badgeText = document.getElementById('global-status-text');
   
-  const setModel = document.getElementById('set-model');
   const setDuration = document.getElementById('set-duration');
   const setResolution = document.getElementById('set-resolution');
   const setRatio = document.getElementById('set-ratio');
@@ -154,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Listen to select/input updates and save to local storage
-  const selectElements = ['set-model', 'set-duration', 'set-resolution', 'set-ratio', 'set-bitrate'];
+  const selectElements = ['set-duration', 'set-resolution', 'set-ratio', 'set-bitrate'];
   selectElements.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
@@ -474,7 +473,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Helper: Read setting states from DOM form elements
   function readSettingsFromForm() {
     return {
-      model: setModel.value,
       duration: parseInt(setDuration.value, 10) || 5,
       resolution: setResolution.value,
       ratio: setRatio.value,
@@ -485,7 +483,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Helper: Sync values to form input elements
   function applySettingsToForm(settings) {
     if (!settings) return;
-    setModel.value = settings.model || 'Enhanced Seedance 2.0 Fast';
     setDuration.value = settings.duration || 5;
     setResolution.value = settings.resolution || '720p';
     setRatio.value = settings.ratio || '16:9';
@@ -572,7 +569,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Layout configuration based on run status
     if (state.status === 'running') {
       promptInput.disabled = true;
-      setModel.disabled = true;
       setDuration.disabled = true;
       setResolution.disabled = true;
       setRatio.disabled = true;
@@ -611,7 +607,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     else if (state.status === 'paused') {
       promptInput.disabled = true;
-      setModel.disabled = true;
       setDuration.disabled = true;
       setResolution.disabled = true;
       setRatio.disabled = true;
@@ -640,7 +635,6 @@ document.addEventListener('DOMContentLoaded', () => {
     else {
       // stopped, idle, done
       promptInput.disabled = false;
-      setModel.disabled = false;
       setDuration.disabled = false;
       setResolution.disabled = false;
       setRatio.disabled = false;
