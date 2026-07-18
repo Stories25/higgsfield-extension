@@ -10,6 +10,66 @@
     return '';
   }
 
+  let keepAliveAudioContext = null;
+  let keepAliveOscillator = null;
+
+  function startKeepAlive() {
+    if (keepAliveAudioContext) return;
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      keepAliveAudioContext = new AudioContextClass();
+      keepAliveOscillator = keepAliveAudioContext.createOscillator();
+      const gainNode = keepAliveAudioContext.createGain();
+      
+      // Set volume to 0 (silent)
+      gainNode.gain.setValueAtTime(0, keepAliveAudioContext.currentTime);
+      
+      keepAliveOscillator.connect(gainNode);
+      gainNode.connect(keepAliveAudioContext.destination);
+      keepAliveOscillator.start();
+      console.log('[HF-EXT] Background keep-alive activated (silent audio).');
+
+      // Handle Chrome autoplay restrictions
+      if (keepAliveAudioContext.state === 'suspended') {
+        const resume = () => {
+          if (keepAliveAudioContext && keepAliveAudioContext.state === 'suspended') {
+            keepAliveAudioContext.resume().then(() => {
+              console.log('[HF-EXT] Resumed keep-alive AudioContext successfully on user gesture.');
+              document.removeEventListener('click', resume);
+            });
+          } else {
+            document.removeEventListener('click', resume);
+          }
+        };
+        document.addEventListener('click', resume);
+      }
+    } catch (err) {
+      console.warn('[HF-EXT] Failed to start background keep-alive:', err);
+    }
+  }
+
+  function stopKeepAlive() {
+    try {
+      if (keepAliveOscillator) {
+        keepAliveOscillator.stop();
+        keepAliveOscillator.disconnect();
+        keepAliveOscillator = null;
+      }
+      if (keepAliveAudioContext) {
+        if (keepAliveAudioContext.state !== 'closed') {
+          keepAliveAudioContext.close();
+        }
+        keepAliveAudioContext = null;
+      }
+      console.log('[HF-EXT] Background keep-alive deactivated.');
+    } catch (err) {
+      console.warn('[HF-EXT] Failed to stop background keep-alive:', err);
+    }
+  }
+
+
   // Find the sidebar container ancestor of the prompt editor
   function getSidebar() {
     const editor = document.querySelector('div[data-lexical-editor="true"][role="textbox"]');
@@ -1104,11 +1164,15 @@
     runPromptPipeline: async function (options) {
       const { promptText, settings, jobTag, useCheck } = options;
       
+      // Start silent audio keep-alive to prevent tab throttling in the background
+      startKeepAlive();
+      
       const sendPipelineLog = (text) => {
         chrome.runtime.sendMessage({ action: 'pipelineLog', text: `${jobTag} ${text}` });
       };
 
       const sendPipelineFinished = (status, errorMsg = '', details = []) => {
+        // Do not stop keep-alive here to maintain active state across prompts
         chrome.runtime.sendMessage({
           action: 'pipelineFinished',
           status,
@@ -1227,6 +1291,12 @@
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'ping') {
       sendResponse({ status: 'ok' });
+      return;
+    }
+
+    if (request.action === 'stopKeepAlive') {
+      stopKeepAlive();
+      sendResponse({ status: 'stopped' });
       return;
     }
 
