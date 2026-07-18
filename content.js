@@ -277,7 +277,10 @@
     }
 
     if (!btn) {
-      throw new Error(`Control button for "${buttonText}" not found`);
+      const warnMsg = `Control button for "${buttonText}" not found. Keeping default selection.`;
+      console.warn(warnMsg);
+      chrome.runtime.sendMessage({ action: 'pipelineLog', text: `[Warning] ${warnMsg}` });
+      return;
     }
 
     btn.click();
@@ -348,7 +351,11 @@
     if (!optionEl) {
       // Dismiss dropdown
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      throw new Error(`Option "${optionText}" not found in dropdown menus`);
+      const currentVal = btn.textContent ? btn.textContent.trim() : 'Unknown';
+      const warnMsg = `Option "${optionText}" not found in "${buttonText}" dropdown. Keeping default/current selection: "${currentVal}".`;
+      console.warn(warnMsg);
+      chrome.runtime.sendMessage({ action: 'pipelineLog', text: `[Warning] ${warnMsg}` });
+      return;
     }
 
     optionEl.click();
@@ -634,7 +641,10 @@
       }
 
       if (!durationBtn) {
-        throw new Error('Duration button not found on page');
+        const warnMsg = 'Duration button not found on page. Keeping default selection.';
+        console.warn(warnMsg);
+        chrome.runtime.sendMessage({ action: 'pipelineLog', text: `[Warning] ${warnMsg}` });
+        return;
       }
 
       // Open the slider popover dialog (if not already open)
@@ -657,7 +667,10 @@
       }
 
       if (!slider) {
-        throw new Error('Duration slider control not found after clicking duration button');
+        const warnMsg = 'Duration slider control not found after clicking duration button. Keeping default selection.';
+        console.warn(warnMsg);
+        chrome.runtime.sendMessage({ action: 'pipelineLog', text: `[Warning] ${warnMsg}` });
+        return;
       }
 
       // Helper function to extract current slider value

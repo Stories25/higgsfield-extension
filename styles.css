@@ -471,10 +471,11 @@ select:focus, input[type="number"]:focus {
   align-items: center;
   gap: 8px;
   margin-top: 4px;
+  flex-wrap: wrap;
 }
 
 .prompt-input-actions .btn {
-  flex: 1 !important;
+  flex: 1 1 calc(50% - 4px) !important;
 }
 
 .bulk-import-actions-row {
@@ -678,3 +679,31 @@ select:focus, input[type="number"]:focus {
   opacity: 0.3;
   cursor: not-allowed;
 }
+
+/* Custom Floating Tooltip */
+.custom-tooltip {
+  position: fixed;
+  z-index: 10000;
+  background: rgba(18, 18, 22, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(209, 254, 23, 0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-size: 11px;
+  line-height: 1.4;
+  max-width: 280px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4), 0 0 10px rgba(209, 254, 23, 0.05);
+  pointer-events: none;
+  transition: opacity 0.12s cubic-bezier(0.4, 0, 0.2, 1), transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  transform: translateY(4px) scale(0.98);
+}
+
+.custom-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+

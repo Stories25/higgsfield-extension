@@ -32,12 +32,90 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnAddPrompt = document.getElementById('btn-add-prompt');
   const btnPasteCSV = document.getElementById('btn-paste-csv');
   const btnUploadFile = document.getElementById('btn-upload-file');
+  const btnDownloadSample = document.getElementById('btn-download-sample');
   const fileImportInput = document.getElementById('file-import-input');
   const btnClearQueue = document.getElementById('btn-clear-queue');
   const queueListContainer = document.getElementById('queue-list-container');
   const queueCount = document.getElementById('queue-count');
 
   let currentStatus = 'idle';
+
+  // Custom Floating Tooltip Setup
+  const tooltip = document.createElement('div');
+  tooltip.className = 'custom-tooltip hidden';
+  document.body.appendChild(tooltip);
+
+  let hideTooltipTimeout = null;
+
+  function positionTooltip(e) {
+    const tooltipWidth = tooltip.offsetWidth;
+    const tooltipHeight = tooltip.offsetHeight;
+    
+    let x = e.clientX + 12;
+    let y = e.clientY + 12;
+    
+    // Check bounds
+    if (x + tooltipWidth > window.innerWidth) {
+      x = e.clientX - tooltipWidth - 12;
+    }
+    if (y + tooltipHeight > window.innerHeight) {
+      y = e.clientY - tooltipHeight - 12;
+    }
+    
+    // Clamp to viewport
+    x = Math.max(8, Math.min(x, window.innerWidth - tooltipWidth - 8));
+    y = Math.max(8, Math.min(y, window.innerHeight - tooltipHeight - 8));
+    
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
+  }
+
+  document.body.addEventListener('mouseover', (e) => {
+    const target = e.target.closest('[data-tooltip]');
+    if (!target) return;
+
+    const text = target.getAttribute('data-tooltip');
+    if (!text || text.trim() === '') return;
+
+    if (hideTooltipTimeout) {
+      clearTimeout(hideTooltipTimeout);
+      hideTooltipTimeout = null;
+    }
+
+    tooltip.textContent = text;
+    tooltip.classList.remove('hidden');
+    tooltip.offsetHeight; // Force reflow
+    tooltip.classList.add('visible');
+    
+    positionTooltip(e);
+  });
+
+  document.body.addEventListener('mousemove', (e) => {
+    const target = e.target.closest('[data-tooltip]');
+    if (!target || !tooltip.classList.contains('visible')) return;
+
+    positionTooltip(e);
+  });
+
+  document.body.addEventListener('mouseout', (e) => {
+    const target = e.target.closest('[data-tooltip]');
+    if (!target) return;
+
+    if (e.relatedTarget && target.contains(e.relatedTarget)) {
+      return;
+    }
+
+    tooltip.classList.remove('visible');
+    if (hideTooltipTimeout) {
+      clearTimeout(hideTooltipTimeout);
+    }
+    hideTooltipTimeout = setTimeout(() => {
+      if (!tooltip.classList.contains('visible')) {
+        tooltip.classList.add('hidden');
+      }
+    }, 120);
+  });
+
 
   // Load Saved Input and Settings on open
   chrome.storage.local.get(['savedPrompts', 'savedSettings'], (data) => {
@@ -92,13 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const text = promptInput.value.trim();
     if (text.length === 0) return;
     
-    // Split by newline to support single-column pastes and multiline inputs
-    const prompts = text
-      .split(/\r?\n/)
-      .map(p => p.trim())
-      .filter(p => p.length > 0);
-
-    if (prompts.length === 0) return;
+    const prompts = [text];
 
     chrome.runtime.sendMessage({ action: 'bulkImport', prompts }, (response) => {
       if (response && response.success) {
@@ -192,6 +264,20 @@ document.addEventListener('DOMContentLoaded', () => {
       columnName: looksLikeHeader ? headerRow[promptColumnIndex] : `Column #${promptColumnIndex + 1}`
     };
   }
+
+  // Download Sample CSV Handler
+  btnDownloadSample.addEventListener('click', () => {
+    const csvContent = "prompt\n\"A futuristic city with flying vehicles, 8k resolution, photorealistic\"\n\"A majestic dragon perched on a mountain peak, fantasy art, cinematic lighting\"\n\"A cute orange cat wearing a space suit, digital painting, highly detailed\"\n";
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'sample_prompts.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  });
 
   // File Upload Handlers
   btnUploadFile.addEventListener('click', () => {
@@ -296,12 +382,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const text = promptInput.value.trim();
-    const prompts = text
-      .split(/\r?\n/)
-      .map(p => p.trim())
-      .filter(p => p.length > 0);
-
-    if (prompts.length > 0) {
+    if (text.length > 0) {
+      const prompts = [text];
       chrome.runtime.sendMessage({ action: 'bulkImport', prompts }, (importResponse) => {
         if (importResponse && importResponse.success) {
           promptInput.value = '';
@@ -464,7 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <span class="queue-item-index">#${index + 1}</span>
               <span class="status-badge ${item.status}">${item.status}</span>
             </div>
-            <div class="queue-item-text" title="${escapeHtml(item.text)}">${escapeHtml(item.text)}</div>
+            <div class="queue-item-text" data-tooltip="${escapeHtml(item.text)}">${escapeHtml(item.text)}</div>
           </div>
           <button class="btn-remove-item" data-index="${index}" title="Remove prompt" ${isRunningOrPaused ? 'disabled' : ''}>
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -499,6 +581,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btnAddPrompt.disabled = true;
       btnPasteCSV.disabled = true;
       btnUploadFile.disabled = true;
+      btnDownloadSample.disabled = true;
       btnClearQueue.disabled = true;
       
       // Setup progress bar details
@@ -509,7 +592,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const currentPromptText = prompts[index] ? prompts[index].text : '';
       
       activePromptTitle.textContent = currentPromptText;
-      activePromptTitle.title = currentPromptText;
+      activePromptTitle.setAttribute('data-tooltip', currentPromptText);
       activeProgressIndex.textContent = `${index + 1} / ${total}`;
       
       // Compute percentage based on completed and failed prompts
@@ -537,6 +620,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btnAddPrompt.disabled = true;
       btnPasteCSV.disabled = true;
       btnUploadFile.disabled = true;
+      btnDownloadSample.disabled = true;
       btnClearQueue.disabled = true;
       
       progressCard.classList.remove('hidden');
@@ -565,6 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btnAddPrompt.disabled = false;
       btnPasteCSV.disabled = false;
       btnUploadFile.disabled = false;
+      btnDownloadSample.disabled = false;
       btnClearQueue.disabled = false;
       
       progressCard.classList.add('hidden');
