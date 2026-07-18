@@ -30,8 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Queue Specific UI Elements
   const btnAddPrompt = document.getElementById('btn-add-prompt');
-  const btnBulkImport = document.getElementById('btn-bulk-import');
-  const importDelimiter = document.getElementById('import-delimiter');
+  const btnPasteCSV = document.getElementById('btn-paste-csv');
+  const btnUploadFile = document.getElementById('btn-upload-file');
+  const fileImportInput = document.getElementById('file-import-input');
   const btnClearQueue = document.getElementById('btn-clear-queue');
   const queueListContainer = document.getElementById('queue-list-container');
   const queueCount = document.getElementById('queue-count');
@@ -91,7 +92,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const text = promptInput.value.trim();
     if (text.length === 0) return;
     
-    chrome.runtime.sendMessage({ action: 'addPrompt', text }, (response) => {
+    // Split by newline to support single-column pastes and multiline inputs
+    const prompts = text
+      .split(/\r?\n/)
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
+
+    if (prompts.length === 0) return;
+
+    chrome.runtime.sendMessage({ action: 'bulkImport', prompts }, (response) => {
       if (response && response.success) {
         promptInput.value = '';
         chrome.storage.local.set({ savedPrompts: '' });
@@ -100,24 +109,148 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  btnBulkImport.addEventListener('click', () => {
-    const text = promptInput.value.trim();
-    if (text.length === 0) return;
+  // Helper: Robust CSV/TSV Parser
+  function parseCSVOrTSV(text) {
+    if (!text || text.trim() === '') return [];
+    
+    const firstLine = text.split(/\r?\n/)[0] || '';
+    const delimiter = (firstLine.includes('\t') && !firstLine.includes(',')) ? '\t' : ',';
+    
+    const rows = [];
+    let currentRow = [''];
+    let inQuotes = false;
+    
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+      
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          currentRow[currentRow.length - 1] += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === delimiter && !inQuotes) {
+        currentRow.push('');
+      } else if ((char === '\r' || char === '\n') && !inQuotes) {
+        if (char === '\r' && nextChar === '\n') {
+          i++;
+        }
+        rows.push(currentRow);
+        currentRow = [''];
+      } else {
+        currentRow[currentRow.length - 1] += char;
+      }
+    }
+    
+    if (currentRow.length > 1 || currentRow[0] !== '') {
+      rows.push(currentRow);
+    }
+    
+    return rows;
+  }
 
-    const delimiterVal = importDelimiter.value;
-    let separator = '\n';
-    if (delimiterVal === 'double-newline') {
-      separator = '\n\n';
-    } else if (delimiterVal === 'semicolon') {
-      separator = ';';
+  // Helper: Extract prompts from parsed CSV/TSV grid
+  function extractPromptsFromRows(rows) {
+    if (rows.length === 0) return { prompts: [], columnName: '' };
+    
+    const cleanRows = rows.filter(row => row.some(cell => cell.trim().length > 0));
+    if (cleanRows.length === 0) return { prompts: [], columnName: '' };
+    
+    const headerRow = cleanRows[0];
+    let promptColumnIndex = 0;
+    let startRow = 0;
+    
+    const headerKeywords = ['prompt', 'prompts', 'text', 'desc', 'description', 'body', 'input', 'queries', 'query', 'content'];
+    const looksLikeHeader = headerRow.some(cell => {
+      const clean = cell.trim().toLowerCase();
+      return headerKeywords.includes(clean);
+    });
+    
+    if (looksLikeHeader) {
+      const index = headerRow.findIndex(cell => {
+        const clean = cell.trim().toLowerCase();
+        return headerKeywords.some(kw => clean.includes(kw));
+      });
+      if (index !== -1) {
+        promptColumnIndex = index;
+        startRow = 1;
+      }
+    }
+    
+    const prompts = [];
+    for (let i = startRow; i < cleanRows.length; i++) {
+      const cellValue = cleanRows[i][promptColumnIndex];
+      if (cellValue && cellValue.trim().length > 0) {
+        prompts.push(cellValue.trim());
+      }
+    }
+    
+    return {
+      prompts,
+      columnName: looksLikeHeader ? headerRow[promptColumnIndex] : `Column #${promptColumnIndex + 1}`
+    };
+  }
+
+  // File Upload Handlers
+  btnUploadFile.addEventListener('click', () => {
+    fileImportInput.click();
+  });
+
+  fileImportInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const fileContent = e.target.result;
+      const fileExtension = file.name.split('.').pop().toLowerCase();
+      let prompts = [];
+
+      if (fileExtension === 'txt') {
+        prompts = fileContent
+          .split(/\r?\n/)
+          .map(p => p.trim())
+          .filter(p => p.length > 0);
+      } else {
+        const rows = parseCSVOrTSV(fileContent);
+        const result = extractPromptsFromRows(rows);
+        prompts = result.prompts;
+      }
+
+      if (prompts.length === 0) {
+        alert('No prompts could be found or parsed from the file.');
+        return;
+      }
+
+      chrome.runtime.sendMessage({ action: 'bulkImport', prompts }, (response) => {
+        if (response && response.success) {
+          updateUI(response.state);
+        }
+      });
+      
+      fileImportInput.value = '';
+    };
+
+    reader.readAsText(file);
+  });
+
+  btnPasteCSV.addEventListener('click', () => {
+    const text = promptInput.value.trim();
+    if (text.length === 0) {
+      alert('Please paste CSV/TSV text into the input field first.');
+      return;
     }
 
-    const prompts = text
-      .split(separator)
-      .map(p => p.trim())
-      .filter(p => p.length > 0);
+    const rows = parseCSVOrTSV(text);
+    const result = extractPromptsFromRows(rows);
+    const prompts = result.prompts;
 
-    if (prompts.length === 0) return;
+    if (prompts.length === 0) {
+      alert('No prompts could be found or parsed from the pasted CSV/TSV data.');
+      return;
+    }
 
     chrome.runtime.sendMessage({ action: 'bulkImport', prompts }, (response) => {
       if (response && response.success) {
@@ -163,30 +296,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const text = promptInput.value.trim();
-    if (text.length > 0) {
-      const delimiterVal = importDelimiter.value;
-      let separator = '\n';
-      if (delimiterVal === 'double-newline') {
-        separator = '\n\n';
-      } else if (delimiterVal === 'semicolon') {
-        separator = ';';
-      }
+    const prompts = text
+      .split(/\r?\n/)
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
 
-      const prompts = text
-        .split(separator)
-        .map(p => p.trim())
-        .filter(p => p.length > 0);
-
-      if (prompts.length > 0) {
-        chrome.runtime.sendMessage({ action: 'bulkImport', prompts }, (importResponse) => {
-          if (importResponse && importResponse.success) {
-            promptInput.value = '';
-            chrome.storage.local.set({ savedPrompts: '' });
-            startQueue();
-          }
-        });
-        return;
-      }
+    if (prompts.length > 0) {
+      chrome.runtime.sendMessage({ action: 'bulkImport', prompts }, (importResponse) => {
+        if (importResponse && importResponse.success) {
+          promptInput.value = '';
+          chrome.storage.local.set({ savedPrompts: '' });
+          startQueue();
+        }
+      });
+      return;
     }
 
     startQueue();
@@ -374,8 +497,8 @@ document.addEventListener('DOMContentLoaded', () => {
       setBitrate.disabled = true;
 
       btnAddPrompt.disabled = true;
-      btnBulkImport.disabled = true;
-      importDelimiter.disabled = true;
+      btnPasteCSV.disabled = true;
+      btnUploadFile.disabled = true;
       btnClearQueue.disabled = true;
       
       // Setup progress bar details
@@ -412,8 +535,8 @@ document.addEventListener('DOMContentLoaded', () => {
       setBitrate.disabled = true;
 
       btnAddPrompt.disabled = true;
-      btnBulkImport.disabled = true;
-      importDelimiter.disabled = true;
+      btnPasteCSV.disabled = true;
+      btnUploadFile.disabled = true;
       btnClearQueue.disabled = true;
       
       progressCard.classList.remove('hidden');
@@ -440,8 +563,8 @@ document.addEventListener('DOMContentLoaded', () => {
       setBitrate.disabled = false;
 
       btnAddPrompt.disabled = false;
-      btnBulkImport.disabled = false;
-      importDelimiter.disabled = false;
+      btnPasteCSV.disabled = false;
+      btnUploadFile.disabled = false;
       btnClearQueue.disabled = false;
       
       progressCard.classList.add('hidden');

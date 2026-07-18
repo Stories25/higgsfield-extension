@@ -32,24 +32,19 @@
         </div>
         <textarea id="prompt-list-input" placeholder="Enter prompt text here..."></textarea>
         <div class="prompt-input-actions">
-          <button id="btn-add-prompt" class="btn secondary-btn small-btn" type="button">
+          <button id="btn-add-prompt" class="btn secondary-btn small-btn" type="button" title="Add prompt(s) from input to the queue">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             Add Prompt
           </button>
-          <div class="bulk-import-group">
-            <button id="btn-bulk-import" class="btn secondary-btn small-btn" type="button">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-              Bulk Import
-            </button>
-            <div class="delimiter-select-wrapper">
-              <span class="delimiter-label">Split:</span>
-              <select id="import-delimiter">
-                <option value="newline" selected>New Line</option>
-                <option value="double-newline">Double New Line</option>
-                <option value="semicolon">Semicolon (;)</option>
-              </select>
-            </div>
-          </div>
+          <button id="btn-paste-csv" class="btn secondary-btn small-btn" type="button" title="Parse and import pasted CSV/TSV table content">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+            Paste CSV
+          </button>
+          <button id="btn-upload-file" class="btn secondary-btn small-btn" type="button" title="Import prompts from CSV, TSV, or TXT file">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            Upload File
+          </button>
+          <input type="file" id="file-import-input" accept=".csv,.txt,.tsv" class="hidden">
         </div>
       </section>
 

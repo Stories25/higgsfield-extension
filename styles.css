@@ -468,10 +468,24 @@ select:focus, input[type="number"]:focus {
 /* Prompt Input Actions */
 .prompt-input-actions {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 8px;
   margin-top: 4px;
+}
+
+.prompt-input-actions .btn {
+  flex: 1 !important;
+}
+
+.bulk-import-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.bulk-import-actions-row #btn-bulk-import {
+  flex: 1 !important;
 }
 
 .small-btn {
