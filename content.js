@@ -1385,6 +1385,19 @@
     document.documentElement.setAttribute('data-hf-interceptor-enabled', enabled ? 'true' : 'false');
   });
 
+  // Sync state changes on local storage for interceptor settings
+  chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (changes.interceptState && changes.interceptState.newValue) {
+      const state = changes.interceptState.newValue;
+      if (state.config) {
+        const size = state.config.size || '200';
+        const enabled = state.config.enabled !== false;
+        document.documentElement.setAttribute('data-hf-interceptor-size', size);
+        document.documentElement.setAttribute('data-hf-interceptor-enabled', enabled ? 'true' : 'false');
+      }
+    }
+  });
+
   // Listen for messages from the injected page script (inject.js)
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;

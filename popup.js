@@ -56,6 +56,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCopyJson = document.getElementById('btn-copy-json');
   const btnDownloadJson = document.getElementById('btn-download-json');
   const previewList = document.getElementById('interceptor-preview-list');
+  const btnRedirectReload = document.getElementById('btn-redirect-reload');
+  const btnEmptyRedirectReload = document.getElementById('btn-empty-redirect-reload');
 
   let currentStatus = 'idle';
 
@@ -992,6 +994,51 @@ document.addEventListener('DOMContentLoaded', () => {
       previewList.appendChild(card);
     });
   }
+
+  // Redirect and reload page action
+  function redirectAndReloadHiggsfield() {
+    const targetUrl = 'https://higgsfield.ai/ai/video';
+    
+    // Disable buttons during transition to prevent double clicks
+    btnRedirectReload.disabled = true;
+    btnEmptyRedirectReload.disabled = true;
+    
+    chrome.tabs.query({}, (tabs) => {
+      // Look for any tab containing higgsfield.ai
+      const existingTab = tabs.find(tab => tab.url && tab.url.includes('higgsfield.ai'));
+      
+      if (existingTab) {
+        // If tab exists, redirect to video panel, activate it, and reload it
+        chrome.tabs.update(existingTab.id, { url: targetUrl, active: true }, () => {
+          chrome.tabs.reload(existingTab.id);
+          // Enable buttons again
+          btnRedirectReload.disabled = false;
+          btnEmptyRedirectReload.disabled = false;
+        });
+        chrome.windows.update(existingTab.windowId, { focused: true });
+      } else {
+        // If tab does not exist, open or update tab
+        chrome.tabs.query({ active: true, currentWindow: true }, (activeTabs) => {
+          const activeTab = activeTabs[0];
+          if (activeTab && (!activeTab.url || activeTab.url === 'chrome://newtab/' || activeTab.url === 'about:blank')) {
+            chrome.tabs.update(activeTab.id, { url: targetUrl }, () => {
+              btnRedirectReload.disabled = false;
+              btnEmptyRedirectReload.disabled = false;
+            });
+          } else {
+            chrome.tabs.create({ url: targetUrl }, () => {
+              btnRedirectReload.disabled = false;
+              btnEmptyRedirectReload.disabled = false;
+            });
+          }
+        });
+      }
+    });
+  }
+
+  // Bind click listeners
+  btnRedirectReload.addEventListener('click', redirectAndReloadHiggsfield);
+  btnEmptyRedirectReload.addEventListener('click', redirectAndReloadHiggsfield);
 
   // Load initial interceptor status
   refreshInterceptorUI();

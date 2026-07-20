@@ -10,7 +10,7 @@
     "sidePanel"
   ],
   "host_permissions": [
-    "https://higgsfield.ai/*"
+    "https://*.higgsfield.ai/*"
   ],
   "action": {
     "default_title": "Higgsfield Batch"
@@ -24,7 +24,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://higgsfield.ai/*"
+        "https://*.higgsfield.ai/*"
       ],
       "css": [
         "content.css"
@@ -36,7 +36,7 @@
     },
     {
       "matches": [
-        "https://higgsfield.ai/*"
+        "https://*.higgsfield.ai/*"
       ],
       "js": [
         "inject.js"
