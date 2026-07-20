@@ -22,146 +22,251 @@
         <span class="status-text" id="global-status-text">Idle</span>
       </div>
     </header>
+    <!-- Tab Navigation Bar -->
+    <nav class="tabs-nav">
+      <button id="tab-btn-generator" class="tab-btn active" type="button">Batch Generator</button>
+      <button id="tab-btn-interceptor" class="tab-btn" type="button">Request Interceptor</button>
+    </nav>
 
-    <!-- Main Content Area -->
-    <main class="app-main">
-      <!-- Input Panel -->
-      <section class="panel-section">
-        <div class="section-header">
-          <h2>Video Prompt</h2>
-        </div>
-        <textarea id="prompt-list-input" placeholder="Enter prompt text here..."></textarea>
-        <div class="prompt-input-actions">
-          <button id="btn-add-prompt" class="btn secondary-btn small-btn" type="button" title="Add prompt(s) from input to the queue">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            Add Prompt
-          </button>
-          <button id="btn-paste-csv" class="btn secondary-btn small-btn" type="button" title="Parse and import pasted CSV/TSV table content">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
-            Paste CSV
-          </button>
-          <button id="btn-upload-file" class="btn secondary-btn small-btn" type="button" title="Import prompts from CSV, TSV, or TXT file">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-            Upload File
-          </button>
-          <button id="btn-download-sample" class="btn secondary-btn small-btn" type="button" title="Download a sample CSV file to see the required format">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Sample CSV
-          </button>
-          <input type="file" id="file-import-input" accept=".csv,.txt,.tsv" class="hidden">
-        </div>
-      </section>
+    <!-- Tab Pane: Generator -->
+    <div id="tab-pane-generator" class="tab-pane-content">
+      <!-- Main Content Area -->
+      <main class="app-main">
+        <!-- Input Panel -->
+        <section class="panel-section">
+          <div class="section-header">
+            <h2>Video Prompt</h2>
+          </div>
+          <textarea id="prompt-list-input" placeholder="Enter prompt text here..."></textarea>
+          <div class="prompt-input-actions">
+            <button id="btn-add-prompt" class="btn secondary-btn small-btn" type="button" title="Add prompt(s) from input to the queue">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              Add Prompt
+            </button>
+            <button id="btn-paste-csv" class="btn secondary-btn small-btn" type="button" title="Parse and import pasted CSV/TSV table content">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+              Paste CSV
+            </button>
+            <button id="btn-upload-file" class="btn secondary-btn small-btn" type="button" title="Import prompts from CSV, TSV, or TXT file">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+              Upload File
+            </button>
+            <button id="btn-download-sample" class="btn secondary-btn small-btn" type="button" title="Download a sample CSV file to see the required format">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Sample CSV
+            </button>
+            <input type="file" id="file-import-input" accept=".csv,.txt,.tsv" class="hidden">
+          </div>
+        </section>
 
-      <!-- Queue Section -->
-      <section class="panel-section queue-section">
-        <div class="section-header">
-          <h2>Prompt Queue (<span id="queue-count">0</span>)</h2>
-          <button id="btn-clear-queue" class="text-btn" type="button">Clear Queue</button>
-        </div>
-        <div class="queue-list" id="queue-list-container">
-          <div class="queue-empty-state">No prompts in queue. Add some above to start.</div>
-        </div>
-      </section>
+        <!-- Queue Section -->
+        <section class="panel-section queue-section">
+          <div class="section-header">
+            <h2>Prompt Queue (<span id="queue-count">0</span>)</h2>
+            <button id="btn-clear-queue" class="text-btn" type="button">Clear Queue</button>
+          </div>
+          <div class="queue-list" id="queue-list-container">
+            <div class="queue-empty-state">No prompts in queue. Add some above to start.</div>
+          </div>
+        </section>
 
-      <!-- Settings Panel -->
-      <section class="panel-section settings-section">
-        <div class="section-header">
-          <h2>Generation Settings</h2>
-        </div>
+        <!-- Settings Panel -->
+        <section class="panel-section settings-section">
+          <div class="section-header">
+            <h2>Generation Settings</h2>
+          </div>
 
-        <div class="settings-card" id="settings-card">
-          <form class="settings-form" id="settings-form">
-
-            <div class="form-row">
-              <div class="form-group">
-                <label for="set-duration">Duration (s)</label>
-                <input type="number" id="set-duration" min="4" max="15" value="5">
+          <div class="settings-card" id="settings-card">
+            <form class="settings-form" id="settings-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="set-duration">Duration (s)</label>
+                  <input type="number" id="set-duration" min="4" max="15" value="5">
+                </div>
+                <div class="form-group">
+                  <label for="set-resolution">Resolution</label>
+                  <select id="set-resolution">
+                    <option value="480p">480p</option>
+                    <option value="720p" selected>720p</option>
+                    <option value="1080p">1080p</option>
+                  </select>
+                </div>
               </div>
-              <div class="form-group">
-                <label for="set-resolution">Resolution</label>
-                <select id="set-resolution">
-                  <option value="480p">480p</option>
-                  <option value="720p" selected>720p</option>
-                  <option value="1080p">1080p</option>
-                </select>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="set-ratio">Ratio</label>
+                  <select id="set-ratio">
+                    <option value="16:9" selected>16:9</option>
+                    <option value="9:16">9:16</option>
+                    <option value="1:1">1:1</option>
+                    <option value="Auto">Auto</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="set-bitrate">Bitrate</label>
+                  <select id="set-bitrate">
+                    <option value="Low">Low</option>
+                    <option value="Standard">Standard</option>
+                    <option value="High" selected>High</option>
+                  </select>
+                </div>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- Active Progress Card -->
+        <section class="panel-section progress-section hidden" id="progress-card">
+          <div class="progress-info">
+            <div class="progress-details">
+              <span class="progress-title" id="active-prompt-title">Generating video...</span>
+              <span class="progress-index" id="active-progress-index">0 / 0</span>
+            </div>
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" id="progress-bar-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Logs Section -->
+        <section class="panel-section logs-section">
+          <div class="section-header">
+            <h2>Execution Logs</h2>
+            <button id="clear-logs" class="text-btn">Clear View</button>
+          </div>
+          <div class="logs-console" id="logs-console">
+            <div class="log-line system-line">[System] Click "Generate" below to begin.</div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Controls Footer -->
+      <footer class="app-footer">
+        <button id="btn-check-start" class="btn primary-btn" style="background-color: #f59e0b; color: #000000;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+          Generate All
+        </button>
+        <button id="btn-fill-only" class="btn secondary-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+          Apply Config
+        </button>
+        <button id="btn-clear-form" class="btn secondary-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z"/></svg>
+          Clear Form
+        </button>
+        <button id="btn-prompt-only" class="btn secondary-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+          Insert Prompt
+        </button>
+        <button id="btn-pause" class="btn secondary-btn hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          Pause
+        </button>
+        <button id="btn-stop" class="btn danger-btn hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+          Stop/Reset
+        </button>
+      </footer>
+    </div>
+
+    <!-- Tab Pane: Interceptor -->
+    <div id="tab-pane-interceptor" class="tab-pane-content hidden">
+      <main class="app-main">
+        <!-- Interceptor Settings Card -->
+        <section class="panel-section">
+          <div class="section-header">
+            <h2>Interceptor Settings</h2>
+          </div>
+          <div class="settings-card">
+            <div class="settings-form">
+              <div class="form-row" style="align-items: center; grid-template-columns: 2fr 1fr;">
+                <div class="form-group">
+                  <label for="interceptor-size">Modified Size Parameter</label>
+                  <select id="interceptor-size">
+                    <option value="200" selected>200 items</option>
+                    <option value="500">500 items</option>
+                  </select>
+                </div>
+                <div class="form-group" style="align-items: flex-end; justify-content: center; margin-top: 14px;">
+                  <label class="toggle-switch" style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;">
+                    <span style="font-size: 11px; color: var(--text-secondary);">Enabled</span>
+                    <input type="checkbox" id="interceptor-toggle" checked style="width: auto; cursor: pointer;">
+                  </label>
+                </div>
               </div>
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="set-ratio">Ratio</label>
-                <select id="set-ratio">
-                  <option value="16:9" selected>16:9</option>
-                  <option value="9:16">9:16</option>
-                  <option value="1:1">1:1</option>
-                  <option value="Auto">Auto</option>
-                </select>
+          </div>
+        </section>
+
+        <!-- Listening status banner -->
+        <div id="interceptor-status-banner" class="interceptor-status-banner listening">
+          <span class="pulse-dot"></span>
+          <span id="interceptor-status-text">Active & Listening for requests...</span>
+        </div>
+
+        <!-- Captured Data Content -->
+        <section class="panel-section" id="interceptor-content-section" style="flex: 1; display: flex; flex-direction: column;">
+          <!-- Empty State -->
+          <div id="interceptor-empty-state" class="interceptor-empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto 12px; display: block;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            No request intercepted yet.
+            <div style="font-size: 11px; margin-top: 6px; color: var(--text-muted); line-height: 1.4;">Navigate to your jobs / generation history page on Higgsfield to trigger.</div>
+          </div>
+
+          <!-- Loading State -->
+          <div id="interceptor-loading-state" class="interceptor-state-card hidden" style="text-align: center; padding: 40px 20px;">
+            <div class="loading-spinner" style="margin: 0 auto 12px;"></div>
+            <div style="font-size: 12px; color: var(--text-secondary); font-weight: 500;">Intercepting request and loading data...</div>
+          </div>
+
+          <!-- Success State -->
+          <div id="interceptor-results-card" class="interceptor-state-card hidden" style="flex: 1; display: flex; flex-direction: column; gap: 14px;">
+            <!-- Metadata Grid -->
+            <div class="metadata-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+              <div class="meta-item" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 8px 10px; border-radius: 6px; display: flex; flex-direction: column; gap: 4px;">
+                <span class="meta-label" style="font-size: 9px; color: var(--text-muted); text-transform: uppercase;">Response Status</span>
+                <div><span id="resp-status" class="status-badge done">200 OK</span></div>
               </div>
-              <div class="form-group">
-                <label for="set-bitrate">Bitrate</label>
-                <select id="set-bitrate">
-                  <option value="Low">Low</option>
-                  <option value="Standard">Standard</option>
-                  <option value="High" selected>High</option>
-                </select>
+              <div class="meta-item" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 8px 10px; border-radius: 6px; display: flex; flex-direction: column; gap: 4px;">
+                <span class="meta-label" style="font-size: 9px; color: var(--text-muted); text-transform: uppercase;">Total Items</span>
+                <span id="resp-total" class="meta-value" style="font-size: 13px; font-weight: 600; font-family: 'JetBrains Mono', monospace; color: var(--brand-color);">0</span>
+              </div>
+              <div class="meta-item" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 8px 10px; border-radius: 6px; display: flex; flex-direction: column; gap: 4px;">
+                <span class="meta-label" style="font-size: 9px; color: var(--text-muted); text-transform: uppercase;">Time Captured</span>
+                <span id="resp-time" class="meta-value" style="font-size: 13px; font-weight: 500;">12:00:00 AM</span>
+              </div>
+              <div class="meta-item" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 8px 10px; border-radius: 6px; display: flex; flex-direction: column; gap: 4px;">
+                <span class="meta-label" style="font-size: 9px; color: var(--text-muted); text-transform: uppercase;">Response Size</span>
+                <span id="resp-size" class="meta-value" style="font-size: 13px; font-weight: 500; font-family: 'JetBrains Mono', monospace;">0.0 KB</span>
               </div>
             </div>
-          </form>
-        </div>
-      </section>
 
-      <!-- Active Progress Card -->
-      <section class="panel-section progress-section hidden" id="progress-card">
-        <div class="progress-info">
-          <div class="progress-details">
-            <span class="progress-title" id="active-prompt-title">Generating video...</span>
-            <span class="progress-index" id="active-progress-index">0 / 0</span>
+            <!-- Action buttons -->
+            <div class="action-buttons-row" style="display: flex; gap: 10px;">
+              <button id="btn-copy-json" class="btn secondary-btn" type="button" style="height: 38px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                Copy JSON
+              </button>
+              <button id="btn-download-json" class="btn primary-btn" type="button" style="height: 38px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Download JSON
+              </button>
+            </div>
+
+            <!-- Preview Header -->
+            <div style="display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0;">
+              <div class="section-header">
+                <h2>Response Preview (First 3 items)</h2>
+              </div>
+              <!-- Preview List scroll wrapper -->
+              <div id="interceptor-preview-list" class="preview-list" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; max-height: 220px;">
+                <!-- Injected elements -->
+              </div>
+            </div>
           </div>
-          <div class="progress-bar-container">
-            <div class="progress-bar-fill" id="progress-bar-fill" style="width: 0%;"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Logs Section -->
-      <section class="panel-section logs-section">
-        <div class="section-header">
-          <h2>Execution Logs</h2>
-          <button id="clear-logs" class="text-btn">Clear View</button>
-        </div>
-        <div class="logs-console" id="logs-console">
-          <div class="log-line system-line">[System] Click "Generate" below to begin.</div>
-        </div>
-      </section>
-    </main>
-
-    <!-- Controls Footer -->
-    <footer class="app-footer">
-
-      <button id="btn-check-start" class="btn primary-btn" style="background-color: #f59e0b; color: #000000;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-        Generate All
-      </button>
-      <button id="btn-fill-only" class="btn secondary-btn">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-        Apply Config
-      </button>
-      <button id="btn-clear-form" class="btn secondary-btn">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z"/></svg>
-        Clear Form
-      </button>
-      <button id="btn-prompt-only" class="btn secondary-btn">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-        Insert Prompt
-      </button>
-      <button id="btn-pause" class="btn secondary-btn hidden">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-        Pause
-      </button>
-      <button id="btn-stop" class="btn danger-btn hidden">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
-        Stop/Reset
-      </button>
-    </footer>
+        </section>
+      </main>
+    </div>
   </div>
   <script src="popup.js"></script>
 </body>

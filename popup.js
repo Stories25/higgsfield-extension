@@ -37,6 +37,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const queueListContainer = document.getElementById('queue-list-container');
   const queueCount = document.getElementById('queue-count');
 
+  // Interceptor UI Elements
+  const tabBtnGenerator = document.getElementById('tab-btn-generator');
+  const tabBtnInterceptor = document.getElementById('tab-btn-interceptor');
+  const paneGenerator = document.getElementById('tab-pane-generator');
+  const paneInterceptor = document.getElementById('tab-pane-interceptor');
+  const interceptorSizeSelect = document.getElementById('interceptor-size');
+  const interceptorToggle = document.getElementById('interceptor-toggle');
+  const interceptorStatusBanner = document.getElementById('interceptor-status-banner');
+  const interceptorStatusText = document.getElementById('interceptor-status-text');
+  const interceptorEmptyState = document.getElementById('interceptor-empty-state');
+  const interceptorLoadingState = document.getElementById('interceptor-loading-state');
+  const interceptorResultsCard = document.getElementById('interceptor-results-card');
+  const respStatus = document.getElementById('resp-status');
+  const respTotal = document.getElementById('resp-total');
+  const respTime = document.getElementById('resp-time');
+  const respSize = document.getElementById('resp-size');
+  const btnCopyJson = document.getElementById('btn-copy-json');
+  const btnDownloadJson = document.getElementById('btn-download-json');
+  const previewList = document.getElementById('interceptor-preview-list');
+
   let currentStatus = 'idle';
 
   // Custom Floating Tooltip Setup
@@ -137,6 +157,8 @@ document.addEventListener('DOMContentLoaded', () => {
   chrome.runtime.onMessage.addListener((message) => {
     if (message.action === 'stateUpdated' && message.state) {
       updateUI(message.state);
+    } else if (message.action === 'interceptStateUpdated' && message.state) {
+      renderInterceptorState(message.state);
     }
   });
 
@@ -144,6 +166,9 @@ document.addEventListener('DOMContentLoaded', () => {
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (changes.batchState && changes.batchState.newValue) {
       updateUI(changes.batchState.newValue);
+    }
+    if (changes.interceptState && changes.interceptState.newValue) {
+      renderInterceptorState(changes.interceptState.newValue);
     }
   });
 
@@ -690,4 +715,284 @@ document.addEventListener('DOMContentLoaded', () => {
     // Auto Scroll console
     logsConsole.scrollTop = logsConsole.scrollHeight;
   }
+
+  // ==========================================
+  // REQUEST INTERCEPTOR SECTION
+  // ==========================================
+
+  // Tab switching logic
+  function switchTab(activeTab) {
+    if (activeTab === 'generator') {
+      tabBtnGenerator.classList.add('active');
+      tabBtnInterceptor.classList.remove('active');
+      paneGenerator.classList.remove('hidden');
+      paneInterceptor.classList.add('hidden');
+      localStorage.setItem('active-tab', 'generator');
+    } else {
+      tabBtnGenerator.classList.remove('active');
+      tabBtnInterceptor.classList.add('active');
+      paneGenerator.classList.add('hidden');
+      paneInterceptor.classList.remove('hidden');
+      localStorage.setItem('active-tab', 'interceptor');
+      refreshInterceptorUI();
+    }
+  }
+
+  tabBtnGenerator.addEventListener('click', () => switchTab('generator'));
+  tabBtnInterceptor.addEventListener('click', () => switchTab('interceptor'));
+
+  // Restore active tab
+  const savedTab = localStorage.getItem('active-tab') || 'generator';
+  switchTab(savedTab);
+
+  // Sync size and toggle updates
+  interceptorSizeSelect.addEventListener('change', saveInterceptorConfig);
+  interceptorToggle.addEventListener('change', saveInterceptorConfig);
+
+  function saveInterceptorConfig() {
+    const size = interceptorSizeSelect.value;
+    const enabled = interceptorToggle.checked;
+    
+    chrome.runtime.sendMessage({
+      action: 'updateInterceptorConfig',
+      config: { size, enabled }
+    }, (response) => {
+      if (response && response.success) {
+        updateInterceptorStatusBanner(enabled);
+      }
+    });
+  }
+
+  function updateInterceptorStatusBanner(enabled) {
+    if (enabled) {
+      interceptorStatusBanner.className = 'interceptor-status-banner listening';
+      interceptorStatusText.textContent = 'Active & Listening for requests...';
+    } else {
+      interceptorStatusBanner.className = 'interceptor-status-banner disabled';
+      interceptorStatusText.textContent = 'Interceptor disabled';
+    }
+  }
+
+  // Refresh data on demand
+  function refreshInterceptorUI() {
+    chrome.runtime.sendMessage({ action: 'getInterceptorStatus' }, (state) => {
+      if (state) {
+        renderInterceptorState(state);
+      }
+    });
+  }
+
+  // Bind copy button
+  btnCopyJson.addEventListener('click', () => {
+    chrome.storage.local.get(['interceptRawJson'], (data) => {
+      const raw = data.interceptRawJson;
+      if (!raw) {
+        alert('No raw JSON found to copy.');
+        return;
+      }
+      navigator.clipboard.writeText(raw).then(() => {
+        const oldText = btnCopyJson.innerHTML;
+        btnCopyJson.textContent = 'Copied!';
+        setTimeout(() => {
+          btnCopyJson.innerHTML = oldText;
+        }, 1500);
+      }).catch(err => {
+        console.error('[HF-EXT] Copy failed:', err);
+        alert('Failed to copy to clipboard.');
+      });
+    });
+  });
+
+  // Bind download button
+  btnDownloadJson.addEventListener('click', () => {
+    chrome.storage.local.get(['interceptRawJson', 'interceptState'], (data) => {
+      const raw = data.interceptRawJson;
+      if (!raw) {
+        alert('No raw JSON found to download.');
+        return;
+      }
+      const state = data.interceptState;
+      const size = state?.config?.size || '200';
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `accessible_jobs_${size}_${timestamp}.json`;
+      
+      const blob = new Blob([raw], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  });
+
+  // Render full interceptor view state
+  function renderInterceptorState(state) {
+    if (!state) return;
+    
+    // Sync UI settings controls
+    if (state.config) {
+      interceptorSizeSelect.value = state.config.size || '200';
+      interceptorToggle.checked = state.config.enabled !== false;
+      updateInterceptorStatusBanner(state.config.enabled !== false);
+    }
+
+    // Toggle sections
+    if (state.status === 'idle') {
+      interceptorEmptyState.classList.remove('hidden');
+      interceptorLoadingState.classList.add('hidden');
+      interceptorResultsCard.classList.add('hidden');
+    } else if (state.status === 'loading') {
+      interceptorEmptyState.classList.add('hidden');
+      interceptorLoadingState.classList.remove('hidden');
+      interceptorResultsCard.classList.add('hidden');
+    } else if (state.status === 'success') {
+      interceptorEmptyState.classList.add('hidden');
+      interceptorLoadingState.classList.add('hidden');
+      interceptorResultsCard.classList.remove('hidden');
+      
+      // Update stats fields
+      respStatus.textContent = state.responseStatus ? `${state.responseStatus} OK` : '200 OK';
+      respTotal.textContent = state.totalItems || '0';
+      respTime.textContent = state.timestamp || 'Unknown';
+      
+      const kbSize = (state.size / 1024).toFixed(1);
+      respSize.textContent = `${kbSize} KB`;
+      
+      // Render previews
+      renderPreviewCards(state.previewItems);
+    } else if (state.status === 'error') {
+      interceptorEmptyState.classList.remove('hidden');
+      interceptorLoadingState.classList.add('hidden');
+      interceptorResultsCard.classList.add('hidden');
+      alert(`Interception processing error: ${state.error}`);
+    }
+  }
+
+  // Render first few items as cards
+  function renderPreviewCards(items) {
+    previewList.innerHTML = '';
+    if (!items || items.length === 0) {
+      previewList.innerHTML = '<div style="font-size:11px; color:var(--text-muted); text-align:center; padding:15px; border:1px solid var(--border-color); border-radius:8px;">No preview items available.</div>';
+      return;
+    }
+
+    items.forEach((item, index) => {
+      const card = document.createElement('div');
+      card.className = 'preview-card';
+
+      // Parse identifier fields
+      let id = item.id || item.job_id || item.jobId || `Item #${index + 1}`;
+      let status = item.status || item.state || 'N/A';
+      let prompt = item.prompt || item.prompt_text || item.text || item.description || '';
+      let modelName = item.model_name || item.model || '';
+      let createdAt = item.created_at || item.createdAt || item.timestamp || '';
+      
+      if (typeof createdAt === 'number') {
+        createdAt = new Date(createdAt).toLocaleString();
+      }
+
+      const shortId = typeof id === 'string' && id.length > 24 
+        ? `${id.substring(0, 8)}...${id.substring(id.length - 8)}` 
+        : id;
+
+      let fieldsHtml = '';
+      
+      if (modelName) {
+        fieldsHtml += `
+          <div class="preview-field">
+            <span class="preview-field-label">Model</span>
+            <span class="preview-field-value">${escapeHtml(modelName)}</span>
+          </div>
+        `;
+      }
+      if (status) {
+        fieldsHtml += `
+          <div class="preview-field">
+            <span class="preview-field-label">Status</span>
+            <span class="preview-field-value"><span class="status-badge ${status.toLowerCase()}">${status}</span></span>
+          </div>
+        `;
+      }
+      if (createdAt) {
+        fieldsHtml += `
+          <div class="preview-field">
+            <span class="preview-field-label">Created At</span>
+            <span class="preview-field-value">${escapeHtml(createdAt)}</span>
+          </div>
+        `;
+      }
+      if (prompt) {
+        fieldsHtml += `
+          <div class="preview-field">
+            <span class="preview-field-label">Prompt</span>
+            <span class="preview-field-value" style="white-space: normal;" title="${escapeHtml(prompt)}">${escapeHtml(prompt)}</span>
+          </div>
+        `;
+      }
+
+      // Append up to 3 miscellaneous properties to keep preview compact
+      let extraFields = 0;
+      Object.entries(item).forEach(([key, val]) => {
+        if (['id', 'job_id', 'jobId', 'status', 'state', 'prompt', 'prompt_text', 'text', 'description', 'model_name', 'model', 'created_at', 'createdAt', 'timestamp'].includes(key)) return;
+        if (val && typeof val === 'object') return; // Skip nested objects
+        if (extraFields < 3) {
+          fieldsHtml += `
+            <div class="preview-field">
+              <span class="preview-field-label">${escapeHtml(key)}</span>
+              <span class="preview-field-value" title="${escapeHtml(String(val))}">${escapeHtml(String(val))}</span>
+            </div>
+          `;
+          extraFields++;
+        }
+      });
+
+      card.innerHTML = `
+        <div class="preview-card-header">
+          <span class="preview-card-title">${escapeHtml(String(shortId))}</span>
+          <span class="queue-item-index">#${index + 1}</span>
+        </div>
+        <div class="preview-card-body">
+          ${fieldsHtml}
+        </div>
+        <button class="preview-card-expand-btn" data-expanded="false" type="button">
+          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          Show Raw JSON
+        </button>
+        <div class="preview-raw-json hidden"></div>
+      `;
+
+      // Expand raw JSON button wiring
+      const expandBtn = card.querySelector('.preview-card-expand-btn');
+      const rawContainer = card.querySelector('.preview-raw-json');
+      const arrowIcon = expandBtn.querySelector('svg');
+      
+      expandBtn.addEventListener('click', () => {
+        const isExpanded = expandBtn.getAttribute('data-expanded') === 'true';
+        if (isExpanded) {
+          expandBtn.setAttribute('data-expanded', 'false');
+          expandBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            Show Raw JSON
+          `;
+          rawContainer.classList.add('hidden');
+        } else {
+          expandBtn.setAttribute('data-expanded', 'true');
+          expandBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s; transform: rotate(180deg);"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            Hide Raw JSON
+          `;
+          rawContainer.textContent = JSON.stringify(item, null, 2);
+          rawContainer.classList.remove('hidden');
+        }
+      });
+
+      previewList.appendChild(card);
+    });
+  }
+
+  // Load initial interceptor status
+  refreshInterceptorUI();
 });

@@ -20,6 +20,22 @@ let batchState = {
   useCheck: false
 };
 
+let interceptState = {
+  status: 'idle', // 'idle' | 'loading' | 'success' | 'error'
+  url: '',
+  responseStatus: null,
+  timestamp: null,
+  size: 0, // In bytes
+  totalItems: 0,
+  previewItems: [],
+  metadata: {},
+  error: null,
+  config: {
+    size: '200',
+    enabled: true
+  }
+};
+
 let isStateLoaded = false;
 let stateLoadedResolve;
 const stateLoadedPromise = new Promise((resolve) => {
@@ -27,7 +43,7 @@ const stateLoadedPromise = new Promise((resolve) => {
 });
 
 // Load initial state from storage if it exists
-chrome.storage.local.get(['batchState'], (result) => {
+chrome.storage.local.get(['batchState', 'interceptState'], (result) => {
   if (result.batchState) {
     batchState = { ...batchState, ...result.batchState };
     
@@ -39,6 +55,9 @@ chrome.storage.local.get(['batchState'], (result) => {
         status: 'queued'
       }));
     }
+  }
+  if (result.interceptState) {
+    interceptState = { ...interceptState, ...result.interceptState };
   }
   isStateLoaded = true;
   stateLoadedResolve();
@@ -221,7 +240,109 @@ async function processNextPrompt() {
 // Listen to Messages from Popup and Content Scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   stateLoadedPromise.then(() => {
-    if (request.action === 'pipelineLog') {
+    if (request.action === 'interceptStart') {
+      interceptState.status = 'loading';
+      chrome.storage.local.set({ interceptState });
+      chrome.runtime.sendMessage({ action: 'interceptStateUpdated', state: interceptState }).catch(() => {});
+      sendResponse({ success: true });
+      return true;
+    }
+
+    else if (request.action === 'saveInterceptedData') {
+      const { status, url, data } = request;
+      try {
+        interceptState.status = 'success';
+        interceptState.url = url;
+        interceptState.responseStatus = status;
+        interceptState.timestamp = new Date().toLocaleTimeString();
+        interceptState.error = null;
+
+        const rawJsonString = JSON.stringify(data);
+        interceptState.size = rawJsonString.length; // size in bytes
+
+        // Process data
+        let list = [];
+        let total = 0;
+        let metadata = {};
+
+        if (Array.isArray(data)) {
+          list = data;
+          total = data.length;
+          metadata = { type: 'Array' };
+        } else if (data && typeof data === 'object') {
+          const commonListKeys = ['jobs', 'items', 'data', 'results', 'list', 'rows', 'records'];
+          let listKey = commonListKeys.find(k => Array.isArray(data[k]));
+          
+          if (listKey) {
+            list = data[listKey];
+            total = list.length;
+            metadata = { ...data };
+            delete metadata[listKey];
+          } else {
+            const firstArrayKey = Object.keys(data).find(k => Array.isArray(data[k]));
+            if (firstArrayKey) {
+              list = data[firstArrayKey];
+              total = list.length;
+              metadata = { ...data };
+              delete metadata[firstArrayKey];
+            } else {
+              list = [data];
+              total = 1;
+              metadata = {};
+            }
+          }
+        }
+
+        interceptState.totalItems = total;
+        
+        // Extract preview items
+        interceptState.previewItems = list.slice(0, 3);
+        interceptState.metadata = metadata;
+
+        addLog(`[Interceptor] Captured jobs list request (${total} items, ${(interceptState.size / 1024).toFixed(1)} KB)`);
+
+        chrome.storage.local.set({ 
+          interceptState, 
+          interceptRawJson: rawJsonString 
+        });
+
+        chrome.runtime.sendMessage({ action: 'interceptStateUpdated', state: interceptState }).catch(() => {});
+        sendResponse({ success: true });
+      } catch (err) {
+        interceptState.status = 'error';
+        interceptState.error = err.message || 'Unknown processing error';
+        chrome.storage.local.set({ interceptState });
+        chrome.runtime.sendMessage({ action: 'interceptStateUpdated', state: interceptState }).catch(() => {});
+        sendResponse({ success: false, error: err.message });
+      }
+      return true;
+    }
+
+    else if (request.action === 'updateInterceptorConfig') {
+      interceptState.config = { ...interceptState.config, ...request.config };
+      chrome.storage.local.set({ interceptState });
+      
+      // Notify active tabs of size change
+      chrome.tabs.query({ url: '*://higgsfield.ai/*' }).then(tabs => {
+        tabs.forEach(tab => {
+          chrome.tabs.sendMessage(tab.id, { 
+            action: 'updateInterceptorSize', 
+            size: interceptState.config.size,
+            enabled: interceptState.config.enabled
+          }).catch(() => {});
+        });
+      });
+      
+      sendResponse({ success: true, state: interceptState });
+      return true;
+    }
+
+    else if (request.action === 'getInterceptorStatus') {
+      sendResponse(interceptState);
+      return true;
+    }
+
+    else if (request.action === 'pipelineLog') {
       addLog(request.text);
       sendResponse({ success: true });
       return true;

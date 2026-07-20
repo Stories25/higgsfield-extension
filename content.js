@@ -1350,6 +1350,13 @@
       return true; // Keep open for asynchronous reply
     }
 
+    if (request.action === 'updateInterceptorSize') {
+      document.documentElement.setAttribute('data-hf-interceptor-size', request.size);
+      document.documentElement.setAttribute('data-hf-interceptor-enabled', request.enabled ? 'true' : 'false');
+      sendResponse({ success: true });
+      return;
+    }
+
     if (automationBridge[request.action]) {
       const args = request.prompt !== undefined ? [request.prompt] :
                    request.model !== undefined ? [request.model] :
@@ -1363,6 +1370,38 @@
         .catch((error) => sendResponse({ error: error.message || error }));
 
       return true; // Keep channel open for asynchronous reply
+    }
+  });
+
+  // Get initial interceptor configuration
+  chrome.storage.local.get(['interceptState'], (data) => {
+    let size = '200';
+    let enabled = true;
+    if (data.interceptState && data.interceptState.config) {
+      size = data.interceptState.config.size || '200';
+      enabled = data.interceptState.config.enabled !== false;
+    }
+    document.documentElement.setAttribute('data-hf-interceptor-size', size);
+    document.documentElement.setAttribute('data-hf-interceptor-enabled', enabled ? 'true' : 'false');
+  });
+
+  // Listen for messages from the injected page script (inject.js)
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+
+    if (event.data && event.data.type === 'HF_INTERCEPT_START') {
+      chrome.runtime.sendMessage({ action: 'interceptStart' }).catch(() => {});
+    }
+
+    else if (event.data && event.data.type === 'HF_INTERCEPTED_RESPONSE') {
+      chrome.runtime.sendMessage({
+        action: 'saveInterceptedData',
+        status: event.data.status,
+        url: event.data.url,
+        data: event.data.data
+      }).catch((err) => {
+        console.error('[HF-EXT] Error sending intercepted data to background:', err);
+      });
     }
   });
 
