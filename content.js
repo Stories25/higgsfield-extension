@@ -527,6 +527,9 @@
     return false;
   }
 
+  // Global tab execution lock to prevent concurrent pipeline loops
+  let activePipelinePromptId = null;
+
   // Automation bridge functions
   const automationBridge = {
     ensureOnVideoPage: async function () {
@@ -1162,22 +1165,30 @@
     },
 
     runPromptPipeline: async function (options) {
-      const { promptText, settings, jobTag, useCheck } = options;
+      const { promptText, settings, jobTag, useCheck, promptId } = options;
       
+      const currentPromptId = promptId || `job_${Date.now()}`;
+      activePipelinePromptId = currentPromptId;
+
+      const isCurrentJob = () => activePipelinePromptId === currentPromptId;
+
       // Start silent audio keep-alive to prevent tab throttling in the background
       startKeepAlive();
       
       const sendPipelineLog = (text) => {
+        if (!isCurrentJob()) return;
         chrome.runtime.sendMessage({ action: 'pipelineLog', text: `${jobTag} ${text}` });
       };
 
       const sendPipelineFinished = (status, errorMsg = '', details = []) => {
-        // Do not stop keep-alive here to maintain active state across prompts
+        if (!isCurrentJob()) return;
+        activePipelinePromptId = null;
         chrome.runtime.sendMessage({
           action: 'pipelineFinished',
           status,
           errorMsg,
-          details
+          details,
+          promptId: currentPromptId
         });
       };
 
@@ -1187,7 +1198,10 @@
           sendPipelineLog('Checking for active generations...');
           let attempt = 0;
           while (true) {
+            if (!isCurrentJob()) return;
             const activeCheck = await this.getActiveGenerationCount();
+            if (!isCurrentJob()) return;
+
             if (activeCheck.count === 0) {
               sendPipelineLog('Page clear detected. Proceeding to setup...');
               break;
@@ -1206,25 +1220,36 @@
             const interval = attempt % 2 === 0 ? 30000 : 60000;
             sendPipelineLog(`Waiting ${interval / 1000} seconds before retrying clear check...`);
             await new Promise(r => setTimeout(r, interval));
+            if (!isCurrentJob()) {
+              sendPipelineLog('Pipeline clear check canceled (superseded by newer job). Aborting.');
+              return;
+            }
             attempt++;
           }
         }
 
+        if (!isCurrentJob()) return;
+
         // Phase 2: Form Setup
         sendPipelineLog('Step 1: Applying configurations (Apply Config)...');
         await this.resetForm(promptText);
+        if (!isCurrentJob()) return;
+
         const activeModel = await this.getSelectedModel();
         sendPipelineLog(`[Steve Jobs Thinking] Simplified UI: Using Higgsfield page's selected model: "${activeModel}"`);
         await this.setDuration(settings.duration);
         await this.setResolution(settings.resolution);
         await this.setRatio(settings.ratio);
         await this.setBitrate(settings.bitrate);
+        if (!isCurrentJob()) return;
 
         sendPipelineLog('Step 2: Clearing form (Clear Form)...');
         await this.resetForm(promptText);
+        if (!isCurrentJob()) return;
 
         sendPipelineLog('Step 3: Inserting prompt text (Insert Prompt)...');
         await this.setPrompt(promptText);
+        if (!isCurrentJob()) return;
 
         // Phase 3: Click Generate & Wait-for-Processing Loop
         sendPipelineLog('Step 4: Clicking Generate button (Generate)...');
@@ -1234,8 +1259,12 @@
           sendPipelineLog(`Initial Click Generate warning: ${err.message || err}. Will retry in polling loop.`);
         }
 
+        if (!isCurrentJob()) return;
+
         // Check if started immediately (zero-wait check)
         let activeCheck = await this.getActiveGenerationCount();
+        if (!isCurrentJob()) return;
+
         if (activeCheck.count > 0) {
           sendPipelineFinished('done', '', activeCheck.details);
           return;
@@ -1244,10 +1273,16 @@
         sendPipelineLog('Generation has not started immediately. Entering indefinite alternating polling retry loop...');
         let attempt = 0;
         while (true) {
+          if (!isCurrentJob()) return;
+
           // Alternate wait interval: 30s for attempt 0, 2, 4... and 60s for attempt 1, 3, 5...
           const interval = attempt % 2 === 0 ? 30000 : 60000;
           sendPipelineLog(`Waiting ${interval / 1000} seconds before retrying check...`);
           await new Promise(r => setTimeout(r, interval));
+          if (!isCurrentJob()) {
+            sendPipelineLog('Polling loop canceled (superseded by newer job). Aborting.');
+            return;
+          }
 
           // Check status and active count
           const statusCheck = await this.checkStatusBanners();
@@ -1263,6 +1298,8 @@
           }
 
           activeCheck = await this.getActiveGenerationCount();
+          if (!isCurrentJob()) return;
+
           if (activeCheck.count > 0) {
             sendPipelineFinished('done', '', activeCheck.details);
             return;
@@ -1278,8 +1315,14 @@
         }
 
       } catch (err) {
-        sendPipelineLog(`CRITICAL PIPELINE ERROR: ${err.message || err}`);
-        sendPipelineFinished('failed', err.message || err);
+        if (isCurrentJob()) {
+          sendPipelineLog(`CRITICAL PIPELINE ERROR: ${err.message || err}`);
+          sendPipelineFinished('failed', err.message || err);
+        }
+      } finally {
+        if (isCurrentJob()) {
+          activePipelinePromptId = null;
+        }
       }
     }
   };

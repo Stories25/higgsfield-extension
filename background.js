@@ -177,6 +177,10 @@ async function processNextPrompt() {
     }
     
     // 2. Launch the tab-side automation pipeline (indefinite loops will live in the tab)
+    if (!currentPrompt.id) {
+      currentPrompt.id = `prompt-${batchState.currentIndex}-${Date.now()}`;
+    }
+
     addLog(`${jobTag} Triggering tab-side generation pipeline...`);
     chrome.tabs.sendMessage(tab.id, {
       action: 'runPromptPipeline',
@@ -184,7 +188,8 @@ async function processNextPrompt() {
         promptText: currentPrompt.text,
         settings: batchState.settings,
         jobTag: jobTag,
-        useCheck: batchState.useCheck
+        useCheck: batchState.useCheck,
+        promptId: currentPrompt.id
       }
     }).then((res) => {
       if (res && res.error) {
@@ -227,6 +232,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const currentPrompt = batchState.prompts[batchState.currentIndex];
         const jobTag = `[Job ${batchState.currentIndex + 1}/${batchState.prompts.length}]`;
         
+        // Guard against stale/out-of-order pipelineFinished messages
+        if (request.promptId && currentPrompt.id && request.promptId !== currentPrompt.id) {
+          addLog(`${jobTag} [System Warning] Ignored stale pipelineFinished message (id: ${request.promptId}) for current prompt (id: ${currentPrompt.id}).`);
+          sendResponse({ success: true, ignored: true });
+          return true;
+        }
+
         if (request.status === 'done') {
           const details = Array.isArray(request.details) ? request.details : [];
           const detailsStr = details.map(d => {
