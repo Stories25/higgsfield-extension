@@ -12,7 +12,7 @@ let batchState = {
   settings: {
     duration: 5,
     resolution: '720p',
-    ratio: '16:9',
+    ratio: '21:9',
     bitrate: 'High'
   },
   log: [],

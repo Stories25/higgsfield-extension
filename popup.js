@@ -512,7 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!settings) return;
     setDuration.value = settings.duration || 5;
     setResolution.value = settings.resolution || '720p';
-    setRatio.value = settings.ratio || '16:9';
+    setRatio.value = settings.ratio || '21:9';
     setBitrate.value = settings.bitrate || 'High';
   }
 
