@@ -10,6 +10,7 @@
     "sidePanel"
   ],
   "host_permissions": [
+    "https://higgsfield.ai/*",
     "https://*.higgsfield.ai/*"
   ],
   "action": {
@@ -24,6 +25,7 @@
   "content_scripts": [
     {
       "matches": [
+        "https://higgsfield.ai/*",
         "https://*.higgsfield.ai/*"
       ],
       "css": [
@@ -36,6 +38,7 @@
     },
     {
       "matches": [
+        "https://higgsfield.ai/*",
         "https://*.higgsfield.ai/*"
       ],
       "js": [

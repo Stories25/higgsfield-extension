@@ -125,7 +125,8 @@ async function getHiggsfieldTab() {
   }
 
   // Query tabs
-  const tabs = await chrome.tabs.query({ url: '*://*.higgsfield.ai/*' });
+  const allTabs = await chrome.tabs.query({});
+  const tabs = allTabs.filter(tab => tab.url && tab.url.includes('higgsfield.ai'));
   if (tabs.length > 0) {
     // Use the first active/open Higgsfield tab
     batchState.targetTabId = tabs[0].id;
@@ -323,7 +324,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       chrome.storage.local.set({ interceptState });
       
       // Notify active tabs of size change
-      chrome.tabs.query({ url: '*://*.higgsfield.ai/*' }).then(tabs => {
+      chrome.tabs.query({}).then(allTabs => {
+        const tabs = allTabs.filter(tab => tab.url && tab.url.includes('higgsfield.ai'));
         tabs.forEach(tab => {
           chrome.tabs.sendMessage(tab.id, { 
             action: 'updateInterceptorSize', 
