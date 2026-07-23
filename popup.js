@@ -42,7 +42,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const tabBtnInterceptor = document.getElementById('tab-btn-interceptor');
   const paneGenerator = document.getElementById('tab-pane-generator');
   const paneInterceptor = document.getElementById('tab-pane-interceptor');
-  const interceptorSizeSelect = document.getElementById('interceptor-size');
+  const viewBtnPicker = document.getElementById('view-btn-picker');
+  const viewBtnJobs = document.getElementById('view-btn-jobs');
+  const groupPickerSize = document.getElementById('group-picker-size');
+  const groupJobsSize = document.getElementById('group-jobs-size');
+  const interceptorPickerSizeSelect = document.getElementById('interceptor-picker-size');
+  const interceptorJobsSizeSelect = document.getElementById('interceptor-jobs-size');
   const interceptorToggle = document.getElementById('interceptor-toggle');
   const interceptorStatusBanner = document.getElementById('interceptor-status-banner');
   const interceptorStatusText = document.getElementById('interceptor-status-text');
@@ -747,17 +752,58 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedTab = localStorage.getItem('active-tab') || 'generator';
   switchTab(savedTab);
 
+  // Endpoint View Switcher State
+  let activeEndpointView = 'picker'; // 'picker' | 'jobs'
+
+  function setEndpointView(viewKey) {
+    activeEndpointView = viewKey;
+    if (viewKey === 'picker') {
+      viewBtnPicker.style.border = '1px solid var(--brand-color)';
+      viewBtnPicker.style.background = 'var(--brand-color-dim)';
+      viewBtnPicker.style.color = 'var(--brand-color)';
+      viewBtnJobs.style.border = '1px solid var(--border-color)';
+      viewBtnJobs.style.background = 'rgba(255,255,255,0.03)';
+      viewBtnJobs.style.color = 'var(--text-secondary)';
+
+      groupPickerSize.classList.remove('hidden');
+      groupJobsSize.classList.add('hidden');
+    } else {
+      viewBtnJobs.style.border = '1px solid var(--brand-color)';
+      viewBtnJobs.style.background = 'var(--brand-color-dim)';
+      viewBtnJobs.style.color = 'var(--brand-color)';
+      viewBtnPicker.style.border = '1px solid var(--border-color)';
+      viewBtnPicker.style.background = 'rgba(255,255,255,0.03)';
+      viewBtnPicker.style.color = 'var(--text-secondary)';
+
+      groupJobsSize.classList.remove('hidden');
+      groupPickerSize.classList.add('hidden');
+    }
+
+    saveInterceptorConfig();
+    refreshInterceptorUI();
+  }
+
+  viewBtnPicker.addEventListener('click', () => setEndpointView('picker'));
+  viewBtnJobs.addEventListener('click', () => setEndpointView('jobs'));
+
   // Sync size and toggle updates
-  interceptorSizeSelect.addEventListener('change', saveInterceptorConfig);
+  interceptorPickerSizeSelect.addEventListener('change', saveInterceptorConfig);
+  interceptorJobsSizeSelect.addEventListener('change', saveInterceptorConfig);
   interceptorToggle.addEventListener('change', saveInterceptorConfig);
 
   function saveInterceptorConfig() {
-    const size = interceptorSizeSelect.value;
+    const jobsSize = interceptorJobsSizeSelect.value;
+    const pickerSize = interceptorPickerSizeSelect.value;
     const enabled = interceptorToggle.checked;
     
     chrome.runtime.sendMessage({
       action: 'updateInterceptorConfig',
-      config: { size, enabled }
+      config: { 
+        activeView: activeEndpointView,
+        jobsSize, 
+        pickerSize, 
+        enabled 
+      }
     }, (response) => {
       if (response && response.success) {
         updateInterceptorStatusBanner(enabled);
@@ -786,10 +832,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Bind copy button
   btnCopyJson.addEventListener('click', () => {
-    chrome.storage.local.get(['interceptRawJson'], (data) => {
-      const raw = data.interceptRawJson;
+    const key = `interceptRawJson_${activeEndpointView}`;
+    chrome.storage.local.get([key, 'interceptRawJson'], (data) => {
+      const raw = data[key] || (activeEndpointView === 'jobs' ? data.interceptRawJson : null);
       if (!raw) {
-        alert('No raw JSON found to copy.');
+        alert(`No raw JSON found for ${activeEndpointView === 'jobs' ? 'Jobs History' : 'Reference Picker'}.`);
         return;
       }
       navigator.clipboard.writeText(raw).then(() => {
@@ -807,16 +854,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Bind download button
   btnDownloadJson.addEventListener('click', () => {
-    chrome.storage.local.get(['interceptRawJson', 'interceptState'], (data) => {
-      const raw = data.interceptRawJson;
+    const key = `interceptRawJson_${activeEndpointView}`;
+    chrome.storage.local.get([key, 'interceptRawJson', 'interceptState'], (data) => {
+      const raw = data[key] || (activeEndpointView === 'jobs' ? data.interceptRawJson : null);
       if (!raw) {
-        alert('No raw JSON found to download.');
+        alert(`No raw JSON found for ${activeEndpointView === 'jobs' ? 'Jobs History' : 'Reference Picker'}.`);
         return;
       }
       const state = data.interceptState;
-      const size = state?.config?.size || '200';
+      const size = activeEndpointView === 'jobs' 
+        ? (state?.config?.jobsSize || '200')
+        : (state?.config?.pickerSize || '30');
       const timestamp = new Date().toISOString().slice(0, 10);
-      const filename = `accessible_jobs_${size}_${timestamp}.json`;
+      const prefix = activeEndpointView === 'jobs' ? 'accessible_jobs' : 'reference_picker';
+      const filename = `${prefix}_${size}_${timestamp}.json`;
       
       const blob = new Blob([raw], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -836,40 +887,69 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Sync UI settings controls
     if (state.config) {
-      interceptorSizeSelect.value = state.config.size || '200';
+      if (state.config.activeView) {
+        activeEndpointView = state.config.activeView;
+      }
+      if (state.config.pickerSize) interceptorPickerSizeSelect.value = state.config.pickerSize;
+      if (state.config.jobsSize || state.config.size) interceptorJobsSizeSelect.value = state.config.jobsSize || state.config.size;
       interceptorToggle.checked = state.config.enabled !== false;
       updateInterceptorStatusBanner(state.config.enabled !== false);
     }
 
-    // Toggle sections
-    if (state.status === 'idle') {
+    // Sync pill styles without triggering save loop
+    if (activeEndpointView === 'picker') {
+      viewBtnPicker.style.border = '1px solid var(--brand-color)';
+      viewBtnPicker.style.background = 'var(--brand-color-dim)';
+      viewBtnPicker.style.color = 'var(--brand-color)';
+      viewBtnJobs.style.border = '1px solid var(--border-color)';
+      viewBtnJobs.style.background = 'rgba(255,255,255,0.03)';
+      viewBtnJobs.style.color = 'var(--text-secondary)';
+
+      groupPickerSize.classList.remove('hidden');
+      groupJobsSize.classList.add('hidden');
+    } else {
+      viewBtnJobs.style.border = '1px solid var(--brand-color)';
+      viewBtnJobs.style.background = 'var(--brand-color-dim)';
+      viewBtnJobs.style.color = 'var(--brand-color)';
+      viewBtnPicker.style.border = '1px solid var(--border-color)';
+      viewBtnPicker.style.background = 'rgba(255,255,255,0.03)';
+      viewBtnPicker.style.color = 'var(--text-secondary)';
+
+      groupJobsSize.classList.remove('hidden');
+      groupPickerSize.classList.add('hidden');
+    }
+
+    // Retrieve active endpoint target data
+    const epData = state.endpoints ? state.endpoints[activeEndpointView] : (activeEndpointView === 'jobs' ? state : null);
+
+    if (!epData || epData.status === 'idle') {
       interceptorEmptyState.classList.remove('hidden');
       interceptorLoadingState.classList.add('hidden');
       interceptorResultsCard.classList.add('hidden');
-    } else if (state.status === 'loading') {
+    } else if (epData.status === 'loading') {
       interceptorEmptyState.classList.add('hidden');
       interceptorLoadingState.classList.remove('hidden');
       interceptorResultsCard.classList.add('hidden');
-    } else if (state.status === 'success') {
+    } else if (epData.status === 'success') {
       interceptorEmptyState.classList.add('hidden');
       interceptorLoadingState.classList.add('hidden');
       interceptorResultsCard.classList.remove('hidden');
       
       // Update stats fields
-      respStatus.textContent = state.responseStatus ? `${state.responseStatus} OK` : '200 OK';
-      respTotal.textContent = state.totalItems || '0';
-      respTime.textContent = state.timestamp || 'Unknown';
+      respStatus.textContent = epData.responseStatus ? `${epData.responseStatus} OK` : '200 OK';
+      respTotal.textContent = epData.totalItems || '0';
+      respTime.textContent = epData.timestamp || 'Unknown';
       
-      const kbSize = (state.size / 1024).toFixed(1);
+      const kbSize = (epData.size / 1024).toFixed(1);
       respSize.textContent = `${kbSize} KB`;
       
       // Render previews
-      renderPreviewCards(state.previewItems);
-    } else if (state.status === 'error') {
+      renderPreviewCards(epData.previewItems);
+    } else if (epData.status === 'error') {
       interceptorEmptyState.classList.remove('hidden');
       interceptorLoadingState.classList.add('hidden');
       interceptorResultsCard.classList.add('hidden');
-      alert(`Interception processing error: ${state.error}`);
+      alert(`Interception processing error: ${epData.error}`);
     }
   }
 

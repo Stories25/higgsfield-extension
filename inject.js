@@ -5,10 +5,23 @@
   console.log('[HF-Interceptor] Main-world injection active.');
 
   function getInterceptorConfig() {
-    const size = document.documentElement.getAttribute('data-hf-interceptor-size') || '200';
+    const jobsSize = document.documentElement.getAttribute('data-hf-interceptor-jobs-size') || '200';
+    const pickerSize = document.documentElement.getAttribute('data-hf-interceptor-picker-size') || '30';
     const enabledStr = document.documentElement.getAttribute('data-hf-interceptor-enabled');
     const enabled = enabledStr !== 'false';
-    return { size, enabled };
+    return { jobsSize, pickerSize, enabled };
+  }
+
+  function getEndpointInfo(url) {
+    if (!url) return null;
+    const strUrl = String(url);
+    if (strUrl.includes('jobs/accessible')) {
+      return { key: 'jobs', name: 'Jobs History' };
+    }
+    if (strUrl.includes('reference-elements/picker') || strUrl.includes('reference_elements/picker')) {
+      return { key: 'picker', name: 'Reference Picker' };
+    }
+    return null;
   }
 
   // 1. Intercept Fetch API
@@ -24,82 +37,93 @@
     }
 
     const config = getInterceptorConfig();
+    const epInfo = getEndpointInfo(url);
 
-    if (config.enabled && url && url.includes('/fnf/jobs/accessible')) {
+    if (config.enabled && epInfo) {
       try {
         const urlObj = new URL(url, window.location.origin);
+        const targetSize = epInfo.key === 'jobs' ? config.jobsSize : config.pickerSize;
         const originalSize = urlObj.searchParams.get('size');
         
-        // Only modify if it's querying size and different from target, or if size parameter is missing
-        if (originalSize !== config.size) {
-          urlObj.searchParams.set('size', config.size);
+        if (originalSize !== targetSize) {
+          urlObj.searchParams.set('size', targetSize);
           const modifiedUrl = urlObj.toString();
           
-          console.log(`[HF-Interceptor] Modifying fetch size parameter from ${originalSize || 'default'} to ${config.size}`);
+          console.log(`[HF-Interceptor] Modifying ${epInfo.name} fetch size from ${originalSize || 'default'} to ${targetSize}`);
           
           if (resource instanceof Request) {
-            // Reconstruct request with new URL
             resource = new Request(modifiedUrl, resource);
           } else {
             resource = modifiedUrl;
           }
         }
         
-        // Notify extension that interception/fetch has started
-        window.postMessage({ type: 'HF_INTERCEPT_START' }, '*');
+        window.postMessage({ type: 'HF_INTERCEPT_START', endpointKey: epInfo.key }, '*');
         
         const response = await originalFetch(resource, options);
         
-        // Clone response to parse body asynchronously
         const clone = response.clone();
         clone.json().then(data => {
           window.postMessage({
             type: 'HF_INTERCEPTED_RESPONSE',
+            endpointKey: epInfo.key,
             status: response.status,
             url: urlObj.toString(),
             data: data
           }, '*');
         }).catch(err => {
-          console.error('[HF-Interceptor] Error parsing intercepted fetch response:', err);
+          console.error(`[HF-Interceptor] Error parsing ${epInfo.name} response:`, err);
         });
         
         return response;
       } catch (err) {
-        console.error('[HF-Interceptor] Error in fetch interception:', err);
+        console.error(`[HF-Interceptor] Error in ${epInfo.name} fetch interception:`, err);
       }
     }
 
     return originalFetch(resource, options);
   };
 
-  // 2. Intercept XMLHttpRequest API (just in case)
+  // 2. Intercept XMLHttpRequest API
   const originalOpen = XMLHttpRequest.prototype.open;
   const originalSend = XMLHttpRequest.prototype.send;
 
   XMLHttpRequest.prototype.open = function(method, url, ...args) {
-    this._url = url;
+    let finalUrl = url;
+    try {
+      const config = getInterceptorConfig();
+      const epInfo = getEndpointInfo(url);
+      
+      if (config.enabled && epInfo) {
+        const urlObj = new URL(url, window.location.origin);
+        const targetSize = epInfo.key === 'jobs' ? config.jobsSize : config.pickerSize;
+        const originalSize = urlObj.searchParams.get('size');
+        
+        if (originalSize !== targetSize) {
+          urlObj.searchParams.set('size', targetSize);
+          finalUrl = urlObj.toString();
+          console.log(`[HF-Interceptor] Modifying ${epInfo.name} XHR size from ${originalSize || 'default'} to ${targetSize}`);
+        }
+        
+        this._interceptedEpInfo = epInfo;
+        this._interceptedUrl = finalUrl;
+      }
+    } catch (err) {
+      console.error('[HF-Interceptor] Error in XHR open interception:', err);
+    }
+
+    this._url = finalUrl;
     this._method = method;
-    return originalOpen.apply(this, [method, url, ...args]);
+    return originalOpen.apply(this, [method, finalUrl, ...args]);
   };
 
   XMLHttpRequest.prototype.send = function(body) {
-    const config = getInterceptorConfig();
-    
-    if (config.enabled && this._url && this._url.includes('/fnf/jobs/accessible')) {
+    if (this._interceptedEpInfo) {
       try {
-        const urlObj = new URL(this._url, window.location.origin);
-        const originalSize = urlObj.searchParams.get('size');
+        const epInfo = this._interceptedEpInfo;
+        const finalUrl = this._interceptedUrl || this._url;
         
-        if (originalSize !== config.size) {
-          urlObj.searchParams.set('size', config.size);
-          const modifiedUrl = urlObj.toString();
-          console.log(`[HF-Interceptor] Modifying XHR size parameter from ${originalSize || 'default'} to ${config.size}`);
-          
-          // Re-initialize with modified URL
-          originalOpen.apply(this, [this._method, modifiedUrl, true]);
-        }
-        
-        window.postMessage({ type: 'HF_INTERCEPT_START' }, '*');
+        window.postMessage({ type: 'HF_INTERCEPT_START', endpointKey: epInfo.key }, '*');
         
         this.addEventListener('load', () => {
           try {
@@ -113,17 +137,18 @@
               
               window.postMessage({
                 type: 'HF_INTERCEPTED_RESPONSE',
+                endpointKey: epInfo.key,
                 status: this.status,
-                url: urlObj.toString(),
+                url: finalUrl,
                 data: responseData
               }, '*');
             }
           } catch (err) {
-            console.error('[HF-Interceptor] Error parsing intercepted XHR response:', err);
+            console.error(`[HF-Interceptor] Error parsing ${epInfo.name} XHR response:`, err);
           }
         });
       } catch (err) {
-        console.error('[HF-Interceptor] Error in XHR interception:', err);
+        console.error('[HF-Interceptor] Error in XHR send interception:', err);
       }
     }
     

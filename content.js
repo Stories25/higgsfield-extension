@@ -1351,7 +1351,8 @@
     }
 
     if (request.action === 'updateInterceptorSize') {
-      document.documentElement.setAttribute('data-hf-interceptor-size', request.size);
+      if (request.jobsSize) document.documentElement.setAttribute('data-hf-interceptor-jobs-size', request.jobsSize);
+      if (request.pickerSize) document.documentElement.setAttribute('data-hf-interceptor-picker-size', request.pickerSize);
       document.documentElement.setAttribute('data-hf-interceptor-enabled', request.enabled ? 'true' : 'false');
       sendResponse({ success: true });
       return;
@@ -1373,28 +1374,25 @@
     }
   });
 
+  function applyInterceptorDOMAttributes(config) {
+    const jobsSize = (config && (config.jobsSize || config.size)) || '200';
+    const pickerSize = (config && config.pickerSize) || '30';
+    const enabled = config ? config.enabled !== false : true;
+
+    document.documentElement.setAttribute('data-hf-interceptor-jobs-size', jobsSize);
+    document.documentElement.setAttribute('data-hf-interceptor-picker-size', pickerSize);
+    document.documentElement.setAttribute('data-hf-interceptor-enabled', enabled ? 'true' : 'false');
+  }
+
   // Get initial interceptor configuration
   chrome.storage.local.get(['interceptState'], (data) => {
-    let size = '200';
-    let enabled = true;
-    if (data.interceptState && data.interceptState.config) {
-      size = data.interceptState.config.size || '200';
-      enabled = data.interceptState.config.enabled !== false;
-    }
-    document.documentElement.setAttribute('data-hf-interceptor-size', size);
-    document.documentElement.setAttribute('data-hf-interceptor-enabled', enabled ? 'true' : 'false');
+    applyInterceptorDOMAttributes(data.interceptState?.config);
   });
 
   // Sync state changes on local storage for interceptor settings
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (changes.interceptState && changes.interceptState.newValue) {
-      const state = changes.interceptState.newValue;
-      if (state.config) {
-        const size = state.config.size || '200';
-        const enabled = state.config.enabled !== false;
-        document.documentElement.setAttribute('data-hf-interceptor-size', size);
-        document.documentElement.setAttribute('data-hf-interceptor-enabled', enabled ? 'true' : 'false');
-      }
+      applyInterceptorDOMAttributes(changes.interceptState.newValue.config);
     }
   });
 
@@ -1403,12 +1401,16 @@
     if (event.source !== window) return;
 
     if (event.data && event.data.type === 'HF_INTERCEPT_START') {
-      chrome.runtime.sendMessage({ action: 'interceptStart' }).catch(() => {});
+      chrome.runtime.sendMessage({ 
+        action: 'interceptStart', 
+        endpointKey: event.data.endpointKey 
+      }).catch(() => {});
     }
 
     else if (event.data && event.data.type === 'HF_INTERCEPTED_RESPONSE') {
       chrome.runtime.sendMessage({
         action: 'saveInterceptedData',
+        endpointKey: event.data.endpointKey || 'jobs',
         status: event.data.status,
         url: event.data.url,
         data: event.data.data

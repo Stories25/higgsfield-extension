@@ -21,18 +21,35 @@ let batchState = {
 };
 
 let interceptState = {
-  status: 'idle', // 'idle' | 'loading' | 'success' | 'error'
-  url: '',
-  responseStatus: null,
-  timestamp: null,
-  size: 0, // In bytes
-  totalItems: 0,
-  previewItems: [],
-  metadata: {},
-  error: null,
   config: {
-    size: '200',
-    enabled: true
+    enabled: true,
+    activeView: 'picker', // 'picker' | 'jobs'
+    jobsSize: '200',
+    pickerSize: '30'
+  },
+  endpoints: {
+    jobs: {
+      status: 'idle',
+      url: '',
+      responseStatus: null,
+      timestamp: null,
+      size: 0,
+      totalItems: 0,
+      previewItems: [],
+      metadata: {},
+      error: null
+    },
+    picker: {
+      status: 'idle',
+      url: '',
+      responseStatus: null,
+      timestamp: null,
+      size: 0,
+      totalItems: 0,
+      previewItems: [],
+      metadata: {},
+      error: null
+    }
   }
 };
 
@@ -57,7 +74,34 @@ chrome.storage.local.get(['batchState', 'interceptState'], (result) => {
     }
   }
   if (result.interceptState) {
-    interceptState = { ...interceptState, ...result.interceptState };
+    const saved = result.interceptState;
+    // Migrate legacy flat interceptState format if present
+    if (saved.endpoints) {
+      interceptState = {
+        config: { ...interceptState.config, ...saved.config },
+        endpoints: {
+          jobs: { ...interceptState.endpoints.jobs, ...saved.endpoints.jobs },
+          picker: { ...interceptState.endpoints.picker, ...saved.endpoints.picker }
+        }
+      };
+    } else {
+      // Legacy flat format to endpoints.jobs
+      interceptState.endpoints.jobs = {
+        status: saved.status || 'idle',
+        url: saved.url || '',
+        responseStatus: saved.responseStatus || null,
+        timestamp: saved.timestamp || null,
+        size: saved.size || 0,
+        totalItems: saved.totalItems || 0,
+        previewItems: saved.previewItems || [],
+        metadata: saved.metadata || {},
+        error: saved.error || null
+      };
+      if (saved.config) {
+        interceptState.config.enabled = saved.config.enabled !== false;
+        interceptState.config.jobsSize = saved.config.size || '200';
+      }
+    }
   }
   isStateLoaded = true;
   stateLoadedResolve();
@@ -242,7 +286,10 @@ async function processNextPrompt() {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   stateLoadedPromise.then(() => {
     if (request.action === 'interceptStart') {
-      interceptState.status = 'loading';
+      const epKey = request.endpointKey || 'jobs';
+      if (interceptState.endpoints[epKey]) {
+        interceptState.endpoints[epKey].status = 'loading';
+      }
       chrome.storage.local.set({ interceptState });
       chrome.runtime.sendMessage({ action: 'interceptStateUpdated', state: interceptState }).catch(() => {});
       sendResponse({ success: true });
@@ -250,18 +297,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     else if (request.action === 'saveInterceptedData') {
-      const { status, url, data } = request;
+      const { endpointKey = 'jobs', status, url, data } = request;
       try {
-        interceptState.status = 'success';
-        interceptState.url = url;
-        interceptState.responseStatus = status;
-        interceptState.timestamp = new Date().toLocaleTimeString();
-        interceptState.error = null;
+        const targetEp = interceptState.endpoints[endpointKey] || interceptState.endpoints.jobs;
+        
+        targetEp.status = 'success';
+        targetEp.url = url;
+        targetEp.responseStatus = status;
+        targetEp.timestamp = new Date().toLocaleTimeString();
+        targetEp.error = null;
 
         const rawJsonString = JSON.stringify(data);
-        interceptState.size = rawJsonString.length; // size in bytes
+        targetEp.size = rawJsonString.length;
 
-        // Process data
+        // Process data array/object
         let list = [];
         let total = 0;
         let metadata = {};
@@ -271,7 +320,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           total = data.length;
           metadata = { type: 'Array' };
         } else if (data && typeof data === 'object') {
-          const commonListKeys = ['jobs', 'items', 'data', 'results', 'list', 'rows', 'records'];
+          const commonListKeys = ['jobs', 'reference_elements', 'referenceElements', 'elements', 'items', 'data', 'results', 'list', 'rows', 'records'];
           let listKey = commonListKeys.find(k => Array.isArray(data[k]));
           
           if (listKey) {
@@ -294,24 +343,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           }
         }
 
-        interceptState.totalItems = total;
-        
-        // Extract preview items
-        interceptState.previewItems = list.slice(0, 3);
-        interceptState.metadata = metadata;
+        targetEp.totalItems = total;
+        targetEp.previewItems = list.slice(0, 3);
+        targetEp.metadata = metadata;
 
-        addLog(`[Interceptor] Captured jobs list request (${total} items, ${(interceptState.size / 1024).toFixed(1)} KB)`);
+        const epName = endpointKey === 'jobs' ? 'Jobs History' : 'Reference Picker';
+        addLog(`[Interceptor] Captured ${epName} response (${total} items, ${(targetEp.size / 1024).toFixed(1)} KB)`);
 
-        chrome.storage.local.set({ 
-          interceptState, 
-          interceptRawJson: rawJsonString 
-        });
+        const storageUpdate = { interceptState };
+        storageUpdate[`interceptRawJson_${endpointKey}`] = rawJsonString;
+        if (endpointKey === 'jobs') {
+          storageUpdate.interceptRawJson = rawJsonString; // Backwards compatibility
+        }
 
+        chrome.storage.local.set(storageUpdate);
         chrome.runtime.sendMessage({ action: 'interceptStateUpdated', state: interceptState }).catch(() => {});
         sendResponse({ success: true });
       } catch (err) {
-        interceptState.status = 'error';
-        interceptState.error = err.message || 'Unknown processing error';
+        const targetEp = interceptState.endpoints[endpointKey] || interceptState.endpoints.jobs;
+        targetEp.status = 'error';
+        targetEp.error = err.message || 'Unknown processing error';
         chrome.storage.local.set({ interceptState });
         chrome.runtime.sendMessage({ action: 'interceptStateUpdated', state: interceptState }).catch(() => {});
         sendResponse({ success: false, error: err.message });
@@ -329,7 +380,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         tabs.forEach(tab => {
           chrome.tabs.sendMessage(tab.id, { 
             action: 'updateInterceptorSize', 
-            size: interceptState.config.size,
+            jobsSize: interceptState.config.jobsSize,
+            pickerSize: interceptState.config.pickerSize,
             enabled: interceptState.config.enabled
           }).catch(() => {});
         });

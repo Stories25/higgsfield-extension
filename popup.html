@@ -184,10 +184,32 @@
           </div>
           <div class="settings-card">
             <div class="settings-form">
+              <!-- Endpoint View Switcher Pills -->
+              <div class="endpoint-view-switch" style="display: flex; gap: 6px; margin-bottom: 8px;">
+                <button id="view-btn-picker" class="text-btn endpoint-pill-btn active" type="button" style="flex: 1; padding: 6px; text-align: center; border-radius: 6px; border: 1px solid var(--brand-color); background: var(--brand-color-dim); color: var(--brand-color);">
+                  Reference Picker
+                </button>
+                <button id="view-btn-jobs" class="text-btn endpoint-pill-btn" type="button" style="flex: 1; padding: 6px; text-align: center; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.03); color: var(--text-secondary);">
+                  Jobs History
+                </button>
+              </div>
+
+              <!-- Interceptor Settings Grid -->
               <div class="form-row" style="align-items: center; grid-template-columns: 2fr 1fr;">
-                <div class="form-group">
-                  <label for="interceptor-size">Modified Size Parameter</label>
-                  <select id="interceptor-size">
+                <div class="form-group" id="group-picker-size">
+                  <label for="interceptor-picker-size">Picker Size (Default: 30)</label>
+                  <select id="interceptor-picker-size">
+                    <option value="10">10 items</option>
+                    <option value="20">20 items</option>
+                    <option value="30" selected>30 items</option>
+                    <option value="40">40 items</option>
+                    <option value="50">50 items</option>
+                    <option value="100">100 items</option>
+                  </select>
+                </div>
+                <div class="form-group hidden" id="group-jobs-size">
+                  <label for="interceptor-jobs-size">Jobs Size (Default: 200)</label>
+                  <select id="interceptor-jobs-size">
                     <option value="5">5 items</option>
                     <option value="10">10 items</option>
                     <option value="20">20 items</option>
