@@ -64,7 +64,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRedirectReload = document.getElementById('btn-redirect-reload');
   const btnEmptyRedirectReload = document.getElementById('btn-empty-redirect-reload');
 
+  // Automation UI Elements
+  const tabBtnAutomation = document.getElementById('tab-btn-automation');
+  const paneAutomation = document.getElementById('tab-pane-automation');
+  const autoApiUrlInput = document.getElementById('auto-api-url');
+  const autoJwtTokenInput = document.getElementById('auto-jwt-token');
+  const btnSaveAutomationConfig = document.getElementById('btn-save-automation-config');
+  const autoConnectionBadge = document.getElementById('automation-connection-badge');
+  const autoStatusFilter = document.getElementById('auto-status-filter');
+  const btnFetchAutomations = document.getElementById('btn-fetch-automations');
+  const btnImportAllAutomations = document.getElementById('btn-import-all-automations');
+  const autoUserFilter = document.getElementById('auto-user-filter');
+  const automationListContainer = document.getElementById('automation-list-container');
+  const automationSettingsToggleHeader = document.getElementById('automation-settings-toggle-header');
+  const automationSettingsCard = document.getElementById('automation-settings-card');
+
   let currentStatus = 'idle';
+  let currentFetchedAutomations = [];
 
   // Custom Floating Tooltip Setup
   const tooltip = document.createElement('div');
@@ -729,24 +745,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Tab switching logic
   function switchTab(activeTab) {
-    if (activeTab === 'generator') {
-      tabBtnGenerator.classList.add('active');
-      tabBtnInterceptor.classList.remove('active');
-      paneGenerator.classList.remove('hidden');
-      paneInterceptor.classList.add('hidden');
-      localStorage.setItem('active-tab', 'generator');
-    } else {
-      tabBtnGenerator.classList.remove('active');
-      tabBtnInterceptor.classList.add('active');
-      paneGenerator.classList.add('hidden');
-      paneInterceptor.classList.remove('hidden');
-      localStorage.setItem('active-tab', 'interceptor');
+    tabBtnGenerator.classList.toggle('active', activeTab === 'generator');
+    tabBtnInterceptor.classList.toggle('active', activeTab === 'interceptor');
+    if (tabBtnAutomation) tabBtnAutomation.classList.toggle('active', activeTab === 'automation');
+
+    paneGenerator.classList.toggle('hidden', activeTab !== 'generator');
+    paneInterceptor.classList.toggle('hidden', activeTab !== 'interceptor');
+    if (paneAutomation) paneAutomation.classList.toggle('hidden', activeTab !== 'automation');
+
+    localStorage.setItem('active-tab', activeTab);
+
+    if (activeTab === 'interceptor') {
       refreshInterceptorUI();
+    } else if (activeTab === 'automation') {
+      loadAutomationConfigAndFetch();
     }
   }
 
   tabBtnGenerator.addEventListener('click', () => switchTab('generator'));
   tabBtnInterceptor.addEventListener('click', () => switchTab('interceptor'));
+  if (tabBtnAutomation) tabBtnAutomation.addEventListener('click', () => switchTab('automation'));
 
   // Restore active tab
   const savedTab = localStorage.getItem('active-tab') || 'generator';
@@ -1122,4 +1140,585 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load initial interceptor status
   refreshInterceptorUI();
+
+  // Floating Toast Notification Helper
+  function showToast(message) {
+    let toast = document.getElementById('extension-toast-notification');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'extension-toast-notification';
+      toast.style.cssText = `
+        position: fixed;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        background: #181820;
+        color: #f3f4f6;
+        border: 1px solid #26262e;
+        border-radius: 6px;
+        padding: 8px 14px;
+        font-size: 11px;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        z-index: 999999;
+        opacity: 0;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        pointer-events: none;
+        max-width: 90%;
+        text-align: center;
+      `;
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(-50%) translateY(20px)';
+    }, 2500);
+  }
+
+  // ==========================================
+  // PROMPT AUTOMATIONS SECTION
+  // ==========================================
+
+  let automationConfig = {
+    apiUrl: 'http://localhost:8000',
+    token: ''
+  };
+
+  // Load configuration from storage
+  function loadAutomationConfig(callback) {
+    chrome.storage.local.get(['automationApiUrl', 'automationToken'], (res) => {
+      if (res.automationApiUrl) automationConfig.apiUrl = res.automationApiUrl;
+      if (res.automationToken) automationConfig.token = res.automationToken;
+      
+      if (autoApiUrlInput) autoApiUrlInput.value = automationConfig.apiUrl;
+      if (autoJwtTokenInput) autoJwtTokenInput.value = automationConfig.token;
+      
+      updateConnectionBadge();
+      if (callback) callback();
+    });
+  }
+
+  function updateConnectionBadge(status = null, message = null) {
+    if (!autoConnectionBadge) return;
+    if (status === 'connected') {
+      autoConnectionBadge.className = 'status-badge done';
+      autoConnectionBadge.textContent = message || 'Connected';
+    } else if (status === 'error') {
+      autoConnectionBadge.className = 'status-badge failed';
+      autoConnectionBadge.textContent = message || 'Error';
+    } else {
+      if (!automationConfig.apiUrl) {
+        autoConnectionBadge.className = 'status-badge';
+        autoConnectionBadge.style.cssText = 'font-size: 10px; background: rgba(255,255,255,0.05); color: var(--text-muted);';
+        autoConnectionBadge.textContent = 'Not Configured';
+      } else {
+        autoConnectionBadge.className = 'status-badge running';
+        autoConnectionBadge.textContent = 'Configured';
+      }
+    }
+  }
+
+  // Save Config event listener
+  if (btnSaveAutomationConfig) {
+    btnSaveAutomationConfig.addEventListener('click', () => {
+      const url = (autoApiUrlInput.value || '').trim().replace(/\/+$/, '');
+      const token = (autoJwtTokenInput.value || '').trim();
+
+      if (!url) {
+        showToast('Please enter a valid Base API URL.');
+        return;
+      }
+
+      automationConfig.apiUrl = url;
+      automationConfig.token = token;
+
+      chrome.storage.local.set({
+        automationApiUrl: url,
+        automationToken: token
+      }, () => {
+        showToast('Automation credentials saved!');
+        fetchBackendAutomations();
+      });
+    });
+  }
+
+  // Toggle settings section visibility
+  if (automationSettingsToggleHeader && automationSettingsCard) {
+    automationSettingsToggleHeader.addEventListener('click', () => {
+      automationSettingsCard.classList.toggle('hidden');
+    });
+  }
+
+  // Fetch Automations from backend
+  async function fetchBackendAutomations() {
+    if (!automationConfig.apiUrl) {
+      if (automationListContainer) {
+        automationListContainer.innerHTML = '<div class="queue-empty-state">Please set your Base API URL first.</div>';
+      }
+      return;
+    }
+
+    if (automationListContainer) {
+      automationListContainer.innerHTML = `
+        <div style="text-align: center; padding: 30px 20px;">
+          <div class="loading-spinner" style="margin: 0 auto 12px;"></div>
+          <div style="font-size: 12px; color: var(--text-secondary); font-weight: 500;">Fetching prompt automations...</div>
+        </div>
+      `;
+    }
+
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (automationConfig.token) {
+        headers['Authorization'] = `Bearer ${automationConfig.token}`;
+      }
+
+      const filterVal = autoStatusFilter ? autoStatusFilter.value : 'all';
+      const userFilterVal = autoUserFilter ? autoUserFilter.value.trim() : '';
+      let requestUrl = `${automationConfig.apiUrl}/prompt-automations?size=50`;
+      if (filterVal && filterVal !== 'all') {
+        requestUrl += `&status=${encodeURIComponent(filterVal)}`;
+      }
+      if (userFilterVal) {
+        requestUrl += `&creator_id=${encodeURIComponent(userFilterVal)}`;
+      }
+
+      const response = await fetch(requestUrl, { method: 'GET', headers });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      updateConnectionBadge('connected', 'Connected');
+
+      const items = (result.data && result.data.prompt_automations) ? result.data.prompt_automations : [];
+      currentFetchedAutomations = items;
+      chrome.storage.local.set({ cachedAutomations: items });
+      renderAutomationItems(items);
+      
+      // Update "Import All" button
+      if (btnImportAllAutomations) {
+        if (items.length > 0) {
+          btnImportAllAutomations.classList.remove('hidden');
+          btnImportAllAutomations.textContent = `Import All (${items.length})`;
+        } else {
+          btnImportAllAutomations.classList.add('hidden');
+        }
+      }
+    } catch (err) {
+      console.error('Fetch automations error:', err);
+      updateConnectionBadge('error', 'Connection Failed');
+      currentFetchedAutomations = [];
+      chrome.storage.local.set({ cachedAutomations: [] });
+      if (btnImportAllAutomations) btnImportAllAutomations.classList.add('hidden');
+      
+      if (automationListContainer) {
+        automationListContainer.innerHTML = `
+          <div style="background: rgba(239, 68, 68, 0.06); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; padding: 20px 16px; text-align: center; margin: 10px 0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--danger-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto 10px; display: block;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <div style="font-size: 13px; font-weight: 600; color: var(--danger-color); margin-bottom: 6px; line-height: 1.4;">
+              Failed to fetch automations: ${escapeHtml(err.message)}
+            </div>
+            <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.5;">
+              Check Base API URL, JWT auth token, or ensure backend server is running with CORS allowed.
+            </div>
+          </div>
+        `;
+      }
+    }
+  }
+
+  // Render list of fetched backend automations
+  function renderAutomationItems(items) {
+    if (!automationListContainer) return;
+
+    if (!items || items.length === 0) {
+      automationListContainer.innerHTML = `
+        <div class="interceptor-empty-state" style="padding: 30px 20px; text-align: center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto 12px; display: block;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          No backend automations found matching the selected filter.
+        </div>
+      `;
+      return;
+    }
+
+    automationListContainer.innerHTML = '';
+    items.forEach((item, index) => {
+      const card = document.createElement('div');
+      card.className = 'automation-row-card';
+
+      const status = (item.status || 'pending').toLowerCase();
+      const statusBorderColors = { pending: '#f59e0b', queue: '#60a5fa', done: 'var(--success-color)', failed: 'var(--danger-color)' };
+      const borderColor = statusBorderColors[status] || 'var(--border-color)';
+      card.style.cssText = `background: var(--bg-card); border: 1px solid var(--border-color); border-left: 3px solid ${borderColor}; border-radius: 8px; margin-bottom: 8px; overflow: hidden;`;
+
+      const createdDate = item.created_at ? new Date(item.created_at).toLocaleString() : 'N/A';
+      const promptText = item.prompt || '';
+      const safeTitle = promptText.replace(/"/g, '&quot;');
+
+      card.innerHTML = `
+        <!-- Row Header: index · status · prompt text · chevron -->
+        <div class="automation-row-header" style="display: flex; align-items: center; padding: 12px 14px; gap: 10px; cursor: pointer; user-select: none;">
+          <span style="flex-shrink: 0; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted); min-width: 18px;">${index + 1}</span>
+          <span class="status-badge ${status}" style="flex-shrink: 0;">${status}</span>
+          <span style="font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0;" title="${safeTitle}">${escapeHtml(promptText)}</span>
+          <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </div>
+
+        <!-- Drawer (hidden by default) -->
+        <div class="automation-row-drawer hidden" style="border-top: 1px solid var(--border-color); padding: 14px; background: rgba(0,0,0,0.2);">
+          <!-- Prompt -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">Prompt</span>
+              <button class="text-btn btn-copy-full-prompt" type="button" style="font-size: 10px; color: var(--brand-color); background: none; border: none; cursor: pointer; padding: 0;">Copy</button>
+            </div>
+            <div style="font-size: 12px; color: var(--text-primary); line-height: 1.6; background: rgba(0,0,0,0.3); padding: 10px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.04); white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto;">${escapeHtml(promptText)}</div>
+          </div>
+
+          <!-- Metadata -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 10px;">
+            <div style="background: rgba(255,255,255,0.03); padding: 6px 8px; border-radius: 4px;">
+              <span style="color: var(--text-muted); display: block; margin-bottom: 1px;">ID</span>
+              <code style="font-family: 'JetBrains Mono', monospace; color: var(--text-primary); font-size: 9px;">${escapeHtml(item.id || '')}</code>
+            </div>
+            <div style="background: rgba(255,255,255,0.03); padding: 6px 8px; border-radius: 4px;">
+              <span style="color: var(--text-muted); display: block; margin-bottom: 1px;">Model</span>
+              <span style="color: var(--text-primary); font-weight: 500;">${escapeHtml(item.model || 'N/A')}</span>
+            </div>
+            <div style="background: rgba(255,255,255,0.03); padding: 6px 8px; border-radius: 4px;">
+              <span style="color: var(--text-muted); display: block; margin-bottom: 1px;">Creator</span>
+              <span style="color: var(--text-primary); font-weight: 500;">${escapeHtml(item.creator_id || 'N/A')}</span>
+            </div>
+            <div style="background: rgba(255,255,255,0.03); padding: 6px 8px; border-radius: 4px;">
+              <span style="color: var(--text-muted); display: block; margin-bottom: 1px;">Created</span>
+              <span style="color: var(--text-primary); font-weight: 500;">${createdDate}</span>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div style="display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+            ${(status === 'pending' || status === 'queue') ? `
+              <button class="btn primary-btn small-btn btn-import-auto" data-id="${item.id}" type="button" style="height: 28px; padding: 0 12px !important; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; flex: none;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                Import to Queue
+              </button>
+            ` : ''}
+            ${status !== 'done' ? `
+              <button class="btn secondary-btn small-btn btn-mark-done" data-id="${item.id}" type="button" style="height: 28px; padding: 0 10px !important; font-size: 10px; flex: none;">Mark Done</button>
+            ` : ''}
+            ${status !== 'failed' ? `
+              <button class="btn secondary-btn small-btn btn-mark-failed" data-id="${item.id}" type="button" style="height: 28px; padding: 0 10px !important; font-size: 10px; color: var(--danger-color); flex: none;">Mark Failed</button>
+            ` : ''}
+            <button class="btn secondary-btn small-btn btn-copy-auto-id" data-id="${item.id}" type="button" style="height: 28px; padding: 0 10px !important; font-size: 10px; flex: none;">Copy ID</button>
+          </div>
+        </div>
+      `;
+
+      // Header click toggles drawer
+      const header = card.querySelector('.automation-row-header');
+      const drawer = card.querySelector('.automation-row-drawer');
+      const chevron = card.querySelector('.chevron-icon');
+
+      function toggleDrawer() {
+        const isHidden = drawer.classList.contains('hidden');
+        // Accordion: collapse all other open drawers first
+        if (isHidden) {
+          automationListContainer.querySelectorAll('.automation-row-card').forEach(otherCard => {
+            if (otherCard === card) return;
+            const otherDrawer = otherCard.querySelector('.automation-row-drawer');
+            const otherChevron = otherCard.querySelector('.chevron-icon');
+            if (otherDrawer && !otherDrawer.classList.contains('hidden')) {
+              otherDrawer.classList.add('hidden');
+              if (otherChevron) otherChevron.classList.remove('rotated');
+            }
+          });
+          drawer.classList.remove('hidden');
+          if (chevron) chevron.classList.add('rotated');
+        } else {
+          drawer.classList.add('hidden');
+          if (chevron) chevron.classList.remove('rotated');
+        }
+      }
+
+      if (header && drawer) {
+        header.addEventListener('click', toggleDrawer);
+      }
+
+      // Copy full prompt handler
+      const btnCopyPrompt = card.querySelector('.btn-copy-full-prompt');
+      if (btnCopyPrompt) {
+        btnCopyPrompt.addEventListener('click', (e) => {
+          e.stopPropagation();
+          navigator.clipboard.writeText(promptText);
+          showToast('Copied full prompt text to clipboard!');
+        });
+      }
+
+      // Import handlers
+      const btnImports = card.querySelectorAll('.btn-import-auto');
+      btnImports.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          importAutomationToQueue(item);
+        });
+      });
+
+      // Mark Done handlers
+      const btnMarkDones = card.querySelectorAll('.btn-mark-done');
+      btnMarkDones.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          patchAutomationStatus(item.id, 'done');
+        });
+      });
+
+      // Mark Failed handlers
+      const btnMarkFaileds = card.querySelectorAll('.btn-mark-failed');
+      btnMarkFaileds.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          patchAutomationStatus(item.id, 'failed');
+        });
+      });
+
+      // Copy ID handlers
+      const btnCopyIds = card.querySelectorAll('.btn-copy-auto-id');
+      btnCopyIds.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          navigator.clipboard.writeText(item.id);
+          showToast('Copied Automation ID to clipboard!');
+        });
+      });
+
+      automationListContainer.appendChild(card);
+    });
+  }
+
+  // Import prompt item into Batch Generator queue
+  function importAutomationToQueue(item) {
+    chrome.runtime.sendMessage({ action: 'getState' }, (response) => {
+      const state = (response && response.state) ? response.state : { prompts: [] };
+      const currentPrompts = state.prompts || [];
+
+      // Avoid duplicate import if prompt already in queue with same backend id
+      const existing = currentPrompts.find(p => p.backendAutomationId === item.id);
+      if (existing) {
+        showToast('Prompt is already in the Batch Generator queue!');
+        return;
+      }
+
+      const newItem = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        text: item.prompt,
+        status: 'queued',
+        backendAutomationId: item.id
+      };
+
+      currentPrompts.push(newItem);
+
+      chrome.runtime.sendMessage({
+        action: 'updatePrompts',
+        prompts: currentPrompts
+      }, (res) => {
+        showToast(`Imported "${item.prompt.substring(0, 20)}..." to queue!`);
+      });
+    });
+  }
+
+  // Import all given automations into Batch Generator queue
+  function importAllAutomationsToQueue(items) {
+    if (!items || items.length === 0) return;
+
+    chrome.runtime.sendMessage({ action: 'getState' }, (response) => {
+      const state = (response && response.state) ? response.state : { prompts: [] };
+      const currentPrompts = state.prompts || [];
+
+      let importedCount = 0;
+      
+      items.forEach(item => {
+        const existing = currentPrompts.find(p => p.backendAutomationId === item.id);
+        if (!existing) {
+          currentPrompts.push({
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            text: item.prompt,
+            status: 'queued',
+            backendAutomationId: item.id
+          });
+          importedCount++;
+        }
+      });
+
+      if (importedCount === 0) {
+        showToast('All visible prompts are already in the queue!');
+        return;
+      }
+
+      chrome.runtime.sendMessage({
+        action: 'updatePrompts',
+        prompts: currentPrompts
+      }, (res) => {
+        showToast(`Imported ${importedCount} prompt${importedCount > 1 ? 's' : ''} to queue!`);
+      });
+    });
+  }
+
+  // Send PATCH request to backend to update automation status
+  async function patchAutomationStatus(id, newStatus, assetId = null) {
+    if (!automationConfig.apiUrl) return;
+
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (automationConfig.token) {
+        headers['Authorization'] = `Bearer ${automationConfig.token}`;
+      }
+
+      const body = { status: newStatus };
+      if (assetId) body.asset_id = assetId;
+
+      const response = await fetch(`${automationConfig.apiUrl}/prompt-automations/${id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      showToast(`Updated automation status to ${newStatus}!`);
+
+      // Locally update the UI for this specific item instead of refetching everything
+      if (automationListContainer) {
+        // Find the specific button that was clicked to locate the card
+        const btn = automationListContainer.querySelector(`.btn-mark-done[data-id="${id}"], .btn-mark-failed[data-id="${id}"]`);
+        if (btn) {
+          const card = btn.closest('.automation-row-card');
+          if (card) {
+            const badge = card.querySelector('.status-badge');
+            if (badge) {
+              badge.className = `status-badge ${newStatus}`;
+              badge.textContent = newStatus;
+            }
+            // Update border color
+            const statusBorderColors = { pending: '#f59e0b', queue: '#60a5fa', done: 'var(--success-color)', failed: 'var(--danger-color)' };
+            const borderColor = statusBorderColors[newStatus] || 'var(--border-color)';
+            card.style.borderLeftColor = borderColor;
+            
+            // Hide the action buttons since it's no longer pending/queue
+            const actionsContainer = card.querySelector('.automation-row-drawer > div:last-child');
+            if (actionsContainer && (newStatus === 'done' || newStatus === 'failed')) {
+              // Optionally we can remove the buttons, but for now just updating the badge is enough visual feedback
+            }
+          }
+        }
+      }
+      
+      // Also update it in currentFetchedAutomations array so "Import All" is accurate if they change filter
+      const item = currentFetchedAutomations.find(i => i.id === id);
+      if (item) {
+        item.status = newStatus;
+      }
+
+    } catch (err) {
+      console.error('PATCH automation error:', err);
+      showToast(`Failed to update status: ${err.message}`);
+    }
+  }
+
+  function loadAutomationConfigAndFetch() {
+    loadAutomationConfig(() => {
+      chrome.storage.local.get(['cachedAutomations'], (result) => {
+        if (result.cachedAutomations && result.cachedAutomations.length > 0) {
+          // Render cached items instead of hitting the network every tab switch
+          currentFetchedAutomations = result.cachedAutomations;
+          renderAutomationItems(currentFetchedAutomations);
+          
+          if (btnImportAllAutomations) {
+            btnImportAllAutomations.classList.remove('hidden');
+            btnImportAllAutomations.textContent = `Import All (${currentFetchedAutomations.length})`;
+          }
+        } else {
+          // Only fetch if we have nothing cached
+          fetchBackendAutomations();
+        }
+      });
+    });
+  }
+
+  if (btnFetchAutomations) {
+    btnFetchAutomations.addEventListener('click', () => {
+      fetchBackendAutomations();
+    });
+  }
+
+  if (autoUserFilter) {
+    autoUserFilter.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        fetchBackendAutomations();
+      }
+    });
+  }
+
+  if (btnImportAllAutomations) {
+    btnImportAllAutomations.addEventListener('click', () => {
+      importAllAutomationsToQueue(currentFetchedAutomations);
+    });
+  }
+
+  // Custom Status Filter Dropdown Component Handlers
+  const autoStatusDropdownTrigger = document.getElementById('auto-status-dropdown-trigger');
+  const autoStatusDropdownMenu = document.getElementById('auto-status-dropdown-menu');
+  const autoStatusSelectedLabel = document.getElementById('auto-status-selected-label');
+  const autoStatusFilterHidden = document.getElementById('auto-status-filter');
+
+  if (autoStatusDropdownTrigger && autoStatusDropdownMenu) {
+    autoStatusDropdownTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isHidden = autoStatusDropdownMenu.classList.contains('hidden');
+      const chevron = autoStatusDropdownTrigger.querySelector('.chevron-icon');
+      if (isHidden) {
+        autoStatusDropdownMenu.classList.remove('hidden');
+        if (chevron) chevron.style.transform = 'rotate(180deg)';
+      } else {
+        autoStatusDropdownMenu.classList.add('hidden');
+        if (chevron) chevron.style.transform = 'rotate(0deg)';
+      }
+    });
+
+    document.addEventListener('click', () => {
+      if (!autoStatusDropdownMenu.classList.contains('hidden')) {
+        autoStatusDropdownMenu.classList.add('hidden');
+        const chevron = autoStatusDropdownTrigger.querySelector('.chevron-icon');
+        if (chevron) chevron.style.transform = 'rotate(0deg)';
+      }
+    });
+
+    const items = autoStatusDropdownMenu.querySelectorAll('.custom-dropdown-item');
+    items.forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const val = item.getAttribute('data-value');
+        const labelText = item.querySelector('span')?.textContent || val;
+
+        items.forEach(i => i.classList.remove('selected'));
+        item.classList.add('selected');
+
+        if (autoStatusSelectedLabel) autoStatusSelectedLabel.textContent = labelText;
+        if (autoStatusFilterHidden) autoStatusFilterHidden.value = val;
+
+        autoStatusDropdownMenu.classList.add('hidden');
+        const chevron = autoStatusDropdownTrigger.querySelector('.chevron-icon');
+        if (chevron) chevron.style.transform = 'rotate(0deg)';
+
+        fetchBackendAutomations();
+      });
+    });
+  }
 });

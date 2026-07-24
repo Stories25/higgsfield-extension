@@ -26,6 +26,7 @@
     <nav class="tabs-nav">
       <button id="tab-btn-generator" class="tab-btn active" type="button">Batch Generator</button>
       <button id="tab-btn-interceptor" class="tab-btn" type="button">Request Interceptor</button>
+      <button id="tab-btn-automation" class="tab-btn" type="button">Prompt Automations</button>
     </nav>
 
     <!-- Tab Pane: Generator -->
@@ -299,6 +300,99 @@
                 <!-- Injected elements -->
               </div>
             </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Tab Pane: Prompt Automations -->
+    <div id="tab-pane-automation" class="tab-pane-content hidden">
+      <main class="app-main">
+        <!-- Settings Section -->
+        <section class="panel-section settings-section">
+          <div class="section-header" style="cursor: pointer; user-select: none;" id="automation-settings-toggle-header">
+            <h2 style="display: flex; align-items: center; gap: 8px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+              Backend API Credentials
+            </h2>
+            <div id="automation-connection-badge" class="status-badge" style="font-size: 10px; background: rgba(255,255,255,0.05); color: var(--text-muted);">
+              Not Configured
+            </div>
+          </div>
+          <div class="settings-card" id="automation-settings-card">
+            <form class="settings-form" id="automation-settings-form" style="display: flex; flex-direction: column; gap: 12px;">
+              <div class="form-group" style="width: 100%;">
+                <label for="auto-api-url" style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">Base API URL</label>
+                <input type="url" id="auto-api-url" placeholder="http://localhost:8000" value="http://localhost:8000" style="width: 100%;">
+              </div>
+              <div class="form-group" style="width: 100%;">
+                <label for="auto-jwt-token" style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">JWT / Bearer Auth Token</label>
+                <input type="password" id="auto-jwt-token" placeholder="Paste your JWT token here..." style="width: 100%;">
+              </div>
+              <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+                <button id="btn-save-automation-config" class="btn primary-btn small-btn" type="button" style="width: 100%; height: 34px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                  Save Credentials
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- Automation Controls Bar -->
+        <section class="panel-section">
+          <div class="section-header" style="flex-wrap: wrap; gap: 10px;">
+            <h2 style="width: 100%;">Backend Automations</h2>
+            <div style="display: flex; gap: 6px; align-items: center; width: 100%; justify-content: space-between;">
+              <div style="display: flex; gap: 6px; align-items: center; flex: 1; min-width: 0;">
+                <!-- User Filter -->
+                <input type="text" id="auto-user-filter" placeholder="User email..." style="height: 28px; flex: 1; min-width: 60px; max-width: 120px; padding: 0 8px; font-size: 11px; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; outline: none; transition: var(--transition-fast);">
+                <!-- Custom UI Dropdown Component -->
+                <div class="custom-dropdown" id="auto-status-dropdown" style="position: relative; user-select: none;">
+                  <button type="button" class="custom-dropdown-trigger" id="auto-status-dropdown-trigger" style="display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 11px; font-weight: 500; height: 28px; padding: 0 10px; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: var(--transition-fast); min-width: 90px;">
+                    <span id="auto-status-selected-label">Pending</span>
+                    <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s ease;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                  </button>
+                  <div class="custom-dropdown-menu hidden" id="auto-status-dropdown-menu">
+                    <div class="custom-dropdown-item selected" data-value="pending">
+                      <span>Pending</span>
+                      <span class="status-badge pending" style="font-size: 8px;">pending</span>
+                    </div>
+                    <div class="custom-dropdown-item" data-value="queue">
+                      <span>Queue</span>
+                      <span class="status-badge queue" style="font-size: 8px;">queue</span>
+                    </div>
+                    <div class="custom-dropdown-item" data-value="done">
+                      <span>Done</span>
+                      <span class="status-badge done" style="font-size: 8px;">done</span>
+                    </div>
+                    <div class="custom-dropdown-item" data-value="failed">
+                      <span>Failed</span>
+                      <span class="status-badge failed" style="font-size: 8px;">failed</span>
+                    </div>
+                    <div class="custom-dropdown-item" data-value="all">
+                      <span>All Statuses</span>
+                    </div>
+                  </div>
+                </div>
+                <input type="hidden" id="auto-status-filter" value="pending">
+              </div>
+              <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
+                <button id="btn-fetch-automations" class="btn secondary-btn small-btn" type="button" title="Fetch prompts" style="padding: 0 8px !important;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                </button>
+                <button id="btn-import-all-automations" class="btn primary-btn small-btn hidden" type="button" title="Import all visible to Batch Generator" style="padding: 0 10px !important;">
+                  Import All
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Automations List Container -->
+        <section class="panel-section queue-section" style="flex: 1; display: flex; flex-direction: column;">
+          <div class="queue-list" id="automation-list-container" style="flex: 1; overflow-y: auto;">
+            <div class="queue-empty-state">No backend automations loaded. Configure credentials above and click "Fetch Prompts".</div>
           </div>
         </section>
       </main>

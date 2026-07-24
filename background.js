@@ -430,6 +430,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           currentPrompt.status = 'failed';
         }
 
+        if (currentPrompt.backendAutomationId) {
+          syncBackendAutomationStatus(currentPrompt.backendAutomationId, currentPrompt.status);
+        }
+
         batchState.currentIndex++;
         saveState();
         
@@ -524,6 +528,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       };
       batchState.prompts.push(newPrompt);
       addLog(`Added prompt: "${request.text.substring(0, 30)}${request.text.length > 30 ? '...' : ''}"`);
+      saveState();
+      sendResponse({ success: true, state: batchState });
+    }
+    else if (request.action === 'updatePrompts') {
+      batchState.prompts = request.prompts;
+      addLog(`Queue updated directly. Total prompts: ${batchState.prompts.length}`);
       saveState();
       sendResponse({ success: true, state: batchState });
     }
@@ -695,3 +705,33 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     }
   });
 });
+
+// Sync automation status to backend API
+function syncBackendAutomationStatus(automationId, status) {
+  if (!automationId) return;
+  chrome.storage.local.get(['automationApiUrl', 'automationToken'], (res) => {
+    const apiUrl = res.automationApiUrl;
+    const token = res.automationToken;
+    if (!apiUrl) return;
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const targetUrl = `${apiUrl.replace(/\/+$/, '')}/prompt-automations/${automationId}`;
+    fetch(targetUrl, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ status })
+    }).then(res => {
+      if (res.ok) {
+        addLog(`[Backend Sync] Updated backend prompt automation ${automationId} status to '${status}'.`);
+      } else {
+        addLog(`[Backend Sync Error] Failed to update ${automationId} (HTTP ${res.status}).`);
+      }
+    }).catch(err => {
+      addLog(`[Backend Sync Error] ${err.message}`);
+    });
+  });
+}
