@@ -587,9 +587,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         itemEl.innerHTML = `
           <div class="queue-item-content">
-            <div class="queue-item-meta">
+            <div class="queue-item-meta" style="display: flex; gap: 6px; align-items: center;">
               <span class="queue-item-index">#${index + 1}</span>
               <span class="status-badge ${item.status}">${item.status}</span>
+              ${item.backendAutomationId ? `
+                <span style="font-size: 10px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.04); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace;" title="Imported from Backend Automations: ${escapeHtml(item.backendAutomationId)}">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"></path><polyline points="1 3 23 3 23 8 1 8 1 3"></polyline><path d="M10 12h4"></path></svg>
+                  ${escapeHtml(item.backendAutomationId.split('-')[0])}
+                </span>
+              ` : ''}
             </div>
             <div class="queue-item-text" data-tooltip="${escapeHtml(item.text)}">${escapeHtml(item.text)}</div>
           </div>
@@ -1141,6 +1147,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load initial interceptor status
   refreshInterceptorUI();
 
+  let toastTimeout;
+  
   // Floating Toast Notification Helper
   function showToast(message) {
     let toast = document.getElementById('extension-toast-notification');
@@ -1169,11 +1177,16 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
       document.body.appendChild(toast);
     }
+    
+    if (toastTimeout) {
+      clearTimeout(toastTimeout);
+    }
+    
     toast.textContent = message;
     toast.style.opacity = '1';
     toast.style.transform = 'translateX(-50%) translateY(0)';
     
-    setTimeout(() => {
+    toastTimeout = setTimeout(() => {
       toast.style.opacity = '0';
       toast.style.transform = 'translateX(-50%) translateY(20px)';
     }, 2500);
@@ -1502,8 +1515,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Import prompt item into Batch Generator queue
   function importAutomationToQueue(item) {
-    chrome.runtime.sendMessage({ action: 'getState' }, (response) => {
-      const state = (response && response.state) ? response.state : { prompts: [] };
+    chrome.runtime.sendMessage({ action: 'getStatus' }, (response) => {
+      const state = response || { prompts: [] };
       const currentPrompts = state.prompts || [];
 
       // Avoid duplicate import if prompt already in queue with same backend id
@@ -1535,11 +1548,12 @@ document.addEventListener('DOMContentLoaded', () => {
   function importAllAutomationsToQueue(items) {
     if (!items || items.length === 0) return;
 
-    chrome.runtime.sendMessage({ action: 'getState' }, (response) => {
-      const state = (response && response.state) ? response.state : { prompts: [] };
+    chrome.runtime.sendMessage({ action: 'getStatus' }, (response) => {
+      const state = response || { prompts: [] };
       const currentPrompts = state.prompts || [];
 
       let importedCount = 0;
+      let skippedCount = 0;
       
       items.forEach(item => {
         const existing = currentPrompts.find(p => p.backendAutomationId === item.id);
@@ -1551,6 +1565,8 @@ document.addEventListener('DOMContentLoaded', () => {
             backendAutomationId: item.id
           });
           importedCount++;
+        } else {
+          skippedCount++;
         }
       });
 
@@ -1563,7 +1579,11 @@ document.addEventListener('DOMContentLoaded', () => {
         action: 'updatePrompts',
         prompts: currentPrompts
       }, (res) => {
-        showToast(`Imported ${importedCount} prompt${importedCount > 1 ? 's' : ''} to queue!`);
+        let msg = `Imported ${importedCount} prompt${importedCount > 1 ? 's' : ''} to queue!`;
+        if (skippedCount > 0) {
+          msg += ` (${skippedCount} skipped, already in queue)`;
+        }
+        showToast(msg);
       });
     });
   }
